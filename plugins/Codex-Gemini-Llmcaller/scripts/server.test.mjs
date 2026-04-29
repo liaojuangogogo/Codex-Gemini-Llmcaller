@@ -2,11 +2,13 @@
 
 import { strict as assert } from "node:assert";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildGoogleBody,
   callModel,
+  getStorePathsForTesting,
   handleToolCall
 } from "./server.mjs";
 
@@ -15,12 +17,54 @@ const MASTER_KEY = "test-master-password";
 const testDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".data", "test-secrets");
 const testSecretsPath = resolve(testDir, "secrets.json");
 const testConfigPath = resolve(testDir, "config.json");
+const defaultUserDataDir = resolve(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data");
 
 function resetSecretStore() {
   rmSync(testDir, { recursive: true, force: true });
   mkdirSync(testDir, { recursive: true });
   process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = testSecretsPath;
   process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = testConfigPath;
+}
+
+function testDefaultStorePathsAreUserStable() {
+  const previousSecretsPath = process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+  const previousConfigPath = process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+  const previousLegacySecretsPath = process.env.MULTI_MODEL_SECRETS_PATH;
+  const previousLegacyConfigPath = process.env.MULTI_MODEL_CONFIG_PATH;
+
+  delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+  delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+  delete process.env.MULTI_MODEL_SECRETS_PATH;
+  delete process.env.MULTI_MODEL_CONFIG_PATH;
+
+  try {
+    const paths = getStorePathsForTesting();
+    assert.equal(paths.secretsPath, resolve(defaultUserDataDir, "secrets.json"));
+    assert.equal(paths.configPath, resolve(defaultUserDataDir, "config.json"));
+    assert(!paths.secretsPath.includes(".codex"), "default secrets path must not point at Codex plugin cache");
+    assert(!paths.configPath.includes(".codex"), "default config path must not point at Codex plugin cache");
+  } finally {
+    if (previousSecretsPath === undefined) {
+      delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+    } else {
+      process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = previousSecretsPath;
+    }
+    if (previousConfigPath === undefined) {
+      delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+    } else {
+      process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = previousConfigPath;
+    }
+    if (previousLegacySecretsPath === undefined) {
+      delete process.env.MULTI_MODEL_SECRETS_PATH;
+    } else {
+      process.env.MULTI_MODEL_SECRETS_PATH = previousLegacySecretsPath;
+    }
+    if (previousLegacyConfigPath === undefined) {
+      delete process.env.MULTI_MODEL_CONFIG_PATH;
+    } else {
+      process.env.MULTI_MODEL_CONFIG_PATH = previousLegacyConfigPath;
+    }
+  }
 }
 
 async function testSecretEncryption() {
@@ -804,6 +848,7 @@ async function testFailureScenarios() {
 }
 
 try {
+  testDefaultStorePathsAreUserStable();
   await testSecretEncryption();
   await testSecretSetFromEnv();
   await testGeminiRequestShape();

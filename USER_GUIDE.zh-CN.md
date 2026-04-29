@@ -34,7 +34,7 @@
 $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 ```
 
-Windows PowerShell 支持这种正斜杠路径。不要把 `.data/` 提交到 GitHub。
+插件运行时会固定读取这个用户级 `.data/`，即使 Codex Desktop 把插件代码复制到 `$HOME/.codex/plugins/cache/` 运行，也不会把 secret 查找位置切到 cache 目录。Windows PowerShell 支持这种正斜杠路径。不要把 `.data/` 提交到 GitHub。
 
 示例配置：
 

@@ -85,12 +85,14 @@ function probeWritableDirectory(directory) {
 try {
   const args = parseArgs(process.argv.slice(2));
   const pluginTargetDir = path.resolve(expandTilde(args.pluginTargetDir) || path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller"));
+  const pluginDataDir = path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data");
   const marketplacePath = path.resolve(expandTilde(args.marketplacePath) || path.join(os.homedir(), ".agents", "plugins", "marketplace.json"));
   const nodeVersion = checkNodeVersion();
   const windowsVersion = checkWindows();
   const powerShellVersion = checkPowerShell();
 
   probeWritableDirectory(pluginTargetDir);
+  probeWritableDirectory(pluginDataDir);
   probeWritableDirectory(path.dirname(marketplacePath));
 
   console.log("Environment check passed.");
@@ -98,6 +100,7 @@ try {
   console.log(`Windows: ${windowsVersion}`);
   console.log(`PowerShell: ${powerShellVersion}`);
   console.log(`Plugin target: ${pluginTargetDir}`);
+  console.log(`Plugin data: ${pluginDataDir}`);
   console.log(`Marketplace: ${marketplacePath}`);
 } catch (error) {
   if (["EBUSY", "EPERM", "EACCES"].includes(error?.code)) {

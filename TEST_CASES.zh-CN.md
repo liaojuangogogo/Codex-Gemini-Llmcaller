@@ -52,6 +52,7 @@ node ./setup.mjs
 - 目标 `.mcp.json` 中 `args[0]` 是绝对 `server.mjs` 路径。
 - 用户级 marketplace 包含 `Codex-Gemini-Llmcaller`。
 - `.data/secrets.json` 不包含明文 API key。
+- `$HOME/.codex/plugins/cache/codex-gemini-llmcaller-local/Codex-Gemini-Llmcaller` 旧缓存被清理，重启客户端后会重新生成新版本缓存。
 
 ## 5. 旧数据迁移
 

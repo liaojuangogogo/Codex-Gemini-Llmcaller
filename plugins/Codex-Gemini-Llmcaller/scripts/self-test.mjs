@@ -2,6 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callModel } from "./server.mjs";
@@ -9,6 +10,7 @@ import { callModel } from "./server.mjs";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const REPO_ROOT = resolve(PLUGIN_ROOT, "..", "..");
+const DEFAULT_USER_SECRETS_PATH = resolve(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data", "secrets.json");
 
 function runNode(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -77,8 +79,8 @@ async function main() {
   runNode(["plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs"], "Release check");
 
   if (realGemini) {
-    if (!existsSync(resolve(PLUGIN_ROOT, ".data", "secrets.json"))) {
-      throw new Error("Real Gemini test requires an installed gemini-default secret in ./plugins/Codex-Gemini-Llmcaller/.data/secrets.json.");
+    if (!existsSync(DEFAULT_USER_SECRETS_PATH)) {
+      throw new Error("Real Gemini test requires an installed gemini-default secret in $HOME/plugins/Codex-Gemini-Llmcaller/.data/secrets.json.");
     }
     await runRealGemini();
   }

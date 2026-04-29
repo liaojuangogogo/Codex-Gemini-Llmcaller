@@ -3,11 +3,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SERVER_NAME = "Codex-Gemini-Llmcaller";
-const SERVER_VERSION = "0.3.0";
+const SERVER_VERSION = "0.3.1";
 const DEFAULT_TIMEOUT_MS = 120000;
 const CONFIG_STORE_VERSION = 1;
 const SECRET_STORE_VERSION = 1;
@@ -17,9 +18,9 @@ const LOCAL_USER_PROTECTION = "local-user-dpapi";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const MODULE_DIR = dirname(MODULE_PATH);
-const PLUGIN_ROOT = resolve(MODULE_DIR, "..");
-const DEFAULT_SECRETS_PATH = resolve(PLUGIN_ROOT, ".data", "secrets.json");
-const DEFAULT_CONFIG_PATH = resolve(PLUGIN_ROOT, ".data", "config.json");
+const USER_PLUGIN_ROOT = resolve(homedir(), "plugins", SERVER_NAME);
+const DEFAULT_SECRETS_PATH = resolve(USER_PLUGIN_ROOT, ".data", "secrets.json");
+const DEFAULT_CONFIG_PATH = resolve(USER_PLUGIN_ROOT, ".data", "config.json");
 const DEFAULT_PROFILE_NAME = "gemini-default";
 const DEFAULT_PROFILE = {
   provider: "google",
@@ -1671,6 +1672,13 @@ function getSecretsPath() {
   return process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH ||
     process.env.MULTI_MODEL_SECRETS_PATH ||
     DEFAULT_SECRETS_PATH;
+}
+
+export function getStorePathsForTesting() {
+  return {
+    configPath: getConfigPath(),
+    secretsPath: getSecretsPath()
+  };
 }
 
 function resolveMasterKeyForRecord(args, record) {

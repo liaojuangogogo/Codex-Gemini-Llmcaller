@@ -25,6 +25,7 @@ node ./setup.mjs
 - 如果发现旧 `$HOME/plugins/multi-model-api/.data/`，且新目录还没有 `.data/`，自动迁移旧加密数据。
 - 在目标插件目录写入使用绝对 `server.mjs` 路径的 `.mcp.json`，避免客户端启动 MCP server 时受工作目录影响。
 - 创建或合并更新 `$HOME/.agents/plugins/marketplace.json`。
+- 清理本插件在 `$HOME/.codex/plugins/cache/` 下的旧缓存，避免客户端继续加载旧版本。
 
 完成后重启 Codex Desktop。
 
@@ -85,3 +86,13 @@ node ./setup.mjs
 ```
 
 如果插件标签能出现但 `call_model` 工具没有暴露，重点检查目标插件目录中的 `.mcp.json` 是否使用了绝对 `server.mjs` 路径，并确认 Codex Desktop 有“完全访问权限”。
+
+如果其他会话提示 `Secret 'gemini-default' was not found`，通常是客户端从 `$HOME/.codex/plugins/cache/` 运行了插件副本，但 secret 保存在用户级插件目录。新版插件默认会固定读取 `$HOME/plugins/Codex-Gemini-Llmcaller/.data/`，重启 Codex Desktop 后应能恢复。
+
+如果仍然报同样错误，请完全退出 Codex Desktop 后重新运行：
+
+```powershell
+node ./setup.mjs --yes
+```
+
+该命令会复用已有 `gemini-default` secret，并清理旧插件缓存。

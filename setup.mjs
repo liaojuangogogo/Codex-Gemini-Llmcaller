@@ -76,6 +76,9 @@ Options:
 Default install target:
   path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller")
 
+Default encrypted data target:
+  path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data")
+
 Default marketplace target:
   path.join(os.homedir(), ".agents", "plugins", "marketplace.json")`);
 }
@@ -97,8 +100,16 @@ function defaultPluginTargetDir() {
   return path.join(os.homedir(), "plugins", PLUGIN_NAME);
 }
 
+function defaultPluginDataDir() {
+  return path.join(defaultPluginTargetDir(), ".data");
+}
+
 function defaultMarketplacePath() {
   return path.join(os.homedir(), ".agents", "plugins", "marketplace.json");
+}
+
+function defaultPluginCacheDir() {
+  return path.join(os.homedir(), ".codex", "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME);
 }
 
 function resolveInstallOptions(args) {
@@ -172,6 +183,7 @@ function probeWritableDirectory(directory) {
 
 function checkWritableTargets(options) {
   probeWritableDirectory(options.pluginTargetDir);
+  probeWritableDirectory(defaultPluginDataDir());
   probeWritableDirectory(path.dirname(options.marketplacePath));
 }
 
@@ -346,7 +358,7 @@ function cleanTargetExceptData(targetDir) {
 }
 
 function migrateLegacyDataIfNeeded(options) {
-  const targetDataDir = path.join(options.pluginTargetDir, ".data");
+  const targetDataDir = defaultPluginDataDir();
   const legacyDataDir = path.join(os.homedir(), "plugins", LEGACY_PLUGIN_NAME, ".data");
 
   if (existsSync(targetDataDir) || !existsSync(legacyDataDir)) {
@@ -495,6 +507,20 @@ function writeMarketplace(options) {
   renameSync(tempPath, options.marketplacePath);
 }
 
+function clearPluginCache() {
+  const cacheDir = defaultPluginCacheDir();
+
+  if (!existsSync(cacheDir)) {
+    return false;
+  }
+
+  rmSync(cacheDir, {
+    recursive: true,
+    force: true
+  });
+  return true;
+}
+
 function isBusyError(error) {
   return ["EBUSY", "EPERM", "EACCES"].includes(error?.code);
 }
@@ -504,6 +530,8 @@ function printEnvironmentSummary(options, powerShellVersion) {
   console.log(`PowerShell: ${powerShellVersion}`);
   console.log(`Source plugin: ${path.relative(REPO_ROOT, SOURCE_PLUGIN_DIR)}`);
   console.log(`Plugin target: ${options.pluginTargetDir}`);
+  console.log(`Plugin data: ${defaultPluginDataDir()}`);
+  console.log(`Plugin cache: ${defaultPluginCacheDir()}`);
   console.log(`Marketplace: ${options.marketplacePath}`);
 }
 
@@ -550,6 +578,11 @@ async function main() {
 
   await writeProfile(server, options);
   writeMarketplace(options);
+  const cacheCleared = clearPluginCache();
+
+  if (cacheCleared) {
+    console.log(`Cleared old Codex plugin cache: ${defaultPluginCacheDir()}`);
+  }
 
   console.log("初始化完成。");
   console.log("重启 Codex Desktop 后，可以直接说：用 Gemini 检查一下这个回答。");
