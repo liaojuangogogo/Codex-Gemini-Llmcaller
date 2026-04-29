@@ -4,17 +4,23 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync }
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SERVER_NAME = "Codex-Gemini-Llmcaller";
-const SERVER_VERSION = "0.3.1";
+const SERVER_VERSION = "0.3.2";
 const DEFAULT_TIMEOUT_MS = 120000;
 const CONFIG_STORE_VERSION = 1;
 const SECRET_STORE_VERSION = 1;
 const SECRET_ALGORITHM = "aes-256-gcm";
 const SECRET_KDF = "scrypt";
 const LOCAL_USER_PROTECTION = "local-user-dpapi";
+const GROUNDED_PROFILE_NAME = "gemini-grounded";
+const DEFAULT_MAX_IMAGES = 4;
+const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const EXECUTION_MODES = new Set(["raw", "review", "rewrite", "extract"]);
+const GROUNDING_MODES = new Set(["off", "google_search"]);
+const INPUT_SOURCES = new Set(["direct", "context"]);
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const MODULE_DIR = dirname(MODULE_PATH);
@@ -30,6 +36,17 @@ const DEFAULT_PROFILE = {
   thinkingLevel: "low",
   autoContinue: true,
   maxContinuationRounds: 2
+};
+
+const DEFAULT_GROUNDED_PROFILE = {
+  provider: "google",
+  model: "gemini-2.5-flash",
+  secretName: "gemini-default",
+  timeoutMs: DEFAULT_TIMEOUT_MS,
+  thinkingLevel: "low",
+  autoContinue: true,
+  maxContinuationRounds: 2,
+  groundingMode: "google_search"
 };
 
 const PROVIDER_PRESETS = [
@@ -127,6 +144,50 @@ const tools = [
           type: "array",
           description: "Chat messages. Roles may be system, user, or assistant.",
           items: messageSchema
+        },
+        executionMode: {
+          type: "string",
+          enum: ["raw", "review", "rewrite", "extract"],
+          description: "Delegation intent selected by Codex before calling the external model."
+        },
+        groundingMode: {
+          type: "string",
+          enum: ["off", "google_search"],
+          description: "Use off by default. Use google_search only when Gemini itself should perform Google Search grounding."
+        },
+        inputSource: {
+          type: "string",
+          enum: ["direct", "context"],
+          description: "Whether the prompt is direct user input or conversation context passed through unchanged."
+        },
+        imageInputs: {
+          type: "array",
+          description: "Images to pass to Gemini. Supports local file paths or image URLs.",
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              url: { type: "string" },
+              mimeType: { type: "string" }
+            },
+            additionalProperties: false
+          }
+        },
+        strictDelegation: {
+          type: "boolean",
+          description: "When true, the caller must not pre-search, rewrite, or add facts before passing the request to Gemini. Defaults to true."
+        },
+        maxImages: {
+          type: "integer",
+          minimum: 1,
+          maximum: 16,
+          description: "Maximum number of imageInputs. Defaults to 4."
+        },
+        maxImageBytes: {
+          type: "integer",
+          minimum: 1024,
+          maximum: 104857600,
+          description: "Maximum bytes per image. Defaults to 10 MB."
         },
         apiKey: {
           type: "string",
@@ -287,6 +348,12 @@ const tools = [
         secretName: { type: "string" },
         apiKeyEnv: { type: "string" },
         baseUrl: { type: "string" },
+        executionMode: { type: "string", enum: ["raw", "review", "rewrite", "extract"] },
+        groundingMode: { type: "string", enum: ["off", "google_search"] },
+        inputSource: { type: "string", enum: ["direct", "context"] },
+        strictDelegation: { type: "boolean" },
+        maxImages: { type: "integer", minimum: 1, maximum: 16 },
+        maxImageBytes: { type: "integer", minimum: 1024, maximum: 104857600 },
         timeoutMs: { type: "integer", minimum: 1000, maximum: 600000 },
         temperature: { type: "number", minimum: 0, maximum: 2 },
         maxTokens: { type: "integer", minimum: 1, maximum: 200000 },
@@ -582,6 +649,9 @@ async function callModelAttempt(args) {
   if (typeof fetch !== "function") {
     throw new Error("Node.js 18 or newer is required because this server uses global fetch.");
   }
+  if (hasImageInputs(args) && args.provider !== "google") {
+    throw rpcError(-32602, "imageInputs are currently supported only for provider 'google'.");
+  }
 
   switch (args.provider) {
     case "openai-compatible":
@@ -629,9 +699,21 @@ function enrichModelResult(result, args) {
     ...result,
     modelInfo,
     tokenUsage,
+    delegation: buildDelegationInfo(args),
     outputMetaFooter: resolveOutputMetaFooter(args),
     configWarning: args.configWarning
   });
+}
+
+function buildDelegationInfo(args) {
+  return {
+    executionMode: args.executionMode ?? "raw",
+    groundingMode: args.groundingMode ?? "off",
+    inputSource: args.inputSource ?? "direct",
+    imageCount: Array.isArray(args.imageInputs) ? args.imageInputs.length : 0,
+    strictDelegation: args.strictDelegation !== false,
+    codexPreprocessedFacts: false
+  };
 }
 
 function normalizeTokenUsage(provider, usage) {
@@ -706,6 +788,13 @@ function formatModelResponseText(result, returnRaw) {
 function formatModelMetaFooter(result) {
   const usage = result.tokenUsage ?? {};
   const info = result.modelInfo ?? {};
+
+  return [
+    "---",
+    `模型: ${info.provider ?? "unknown"} / ${info.model ?? "unknown"}`,
+    `Profile: ${info.profileName ?? "unknown"}`,
+    `Tokens: input=${formatTokenValue(usage.input)}, output=${formatTokenValue(usage.output)}, total=${formatTokenValue(usage.total)}`
+  ].join("\n");
 
   return [
     "---",
@@ -812,6 +901,7 @@ async function callAnthropic(args, messages, apiKey, timeoutMs) {
 }
 
 async function callGoogle(args, messages, apiKey, timeoutMs) {
+  args = await prepareGoogleArgs(args, timeoutMs);
   const maxContinuationRounds = args.autoContinue === false
     ? 0
     : clampInteger(args.maxContinuationRounds, 0, 10, 2);
@@ -1165,7 +1255,54 @@ function resolveCallArgs(args) {
     }
   }
 
-  return merged;
+  const normalized = normalizeDelegationArgs(merged);
+
+  if (shouldAutoSwitchToGroundedProfile(normalized, explicitArgs)) {
+    return resolveGroundedCallArgs(config, explicitArgs);
+  }
+
+  return normalized;
+}
+
+function resolveGroundedCallArgs(config, explicitArgs) {
+  const groundedProfileName = normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME);
+  const groundedProfile = config.profiles[groundedProfileName] ?? (
+    groundedProfileName === GROUNDED_PROFILE_NAME ? DEFAULT_GROUNDED_PROFILE : null
+  );
+
+  if (!groundedProfile) {
+    throw rpcError(-32602, `Grounded profile '${groundedProfileName}' was not found.`);
+  }
+
+  return normalizeDelegationArgs(removeUndefined({
+    outputMetaFooter: config.outputMetaFooter,
+    ...groundedProfile,
+    ...explicitArgs,
+    profileName: groundedProfileName,
+    groundingMode: "google_search",
+    configWarning: config.configWarning
+  }));
+}
+
+function shouldAutoSwitchToGroundedProfile(args, explicitArgs) {
+  if (args.groundingMode !== "google_search") {
+    return false;
+  }
+  if (supportsGoogleSearchGrounding(args)) {
+    return false;
+  }
+
+  return !explicitArgs.profileName &&
+    !explicitArgs.provider &&
+    !explicitArgs.model &&
+    !explicitArgs.baseUrl;
+}
+
+function supportsGoogleSearchGrounding(args) {
+  return args.provider === "google" &&
+    typeof args.model === "string" &&
+    args.model.trim().startsWith("gemini-") &&
+    !/(^|[-_.])(preview|experimental|exp)([-_.]|$)/iu.test(args.model);
 }
 
 function readConfigStore() {
@@ -1216,6 +1353,7 @@ function defaultConfigStore() {
   return {
     version: CONFIG_STORE_VERSION,
     defaultProfile: DEFAULT_PROFILE_NAME,
+    groundedProfileName: GROUNDED_PROFILE_NAME,
     outputMetaFooter: true,
     profiles: {
       [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE }
@@ -1240,10 +1378,14 @@ function normalizeConfigStore(parsed, defaults) {
   const defaultProfile = typeof parsed.defaultProfile === "string" && profiles[parsed.defaultProfile]
     ? parsed.defaultProfile
     : defaults.defaultProfile;
+  const groundedProfileName = typeof parsed.groundedProfileName === "string" && parsed.groundedProfileName.trim()
+    ? normalizeProfileName(parsed.groundedProfileName)
+    : defaults.groundedProfileName;
 
   return {
     version: parsed.version ?? CONFIG_STORE_VERSION,
     defaultProfile,
+    groundedProfileName,
     outputMetaFooter: typeof parsed.outputMetaFooter === "boolean" ? parsed.outputMetaFooter : defaults.outputMetaFooter,
     profiles
   };
@@ -1253,6 +1395,7 @@ function publicConfig(config) {
   return {
     version: config.version,
     defaultProfile: config.defaultProfile,
+    groundedProfileName: config.groundedProfileName,
     outputMetaFooter: config.outputMetaFooter,
     configPath: getConfigPath(),
     configWarning: config.configWarning,
@@ -1266,6 +1409,7 @@ function publicConfigForStorage(config) {
   return {
     version: config.version ?? CONFIG_STORE_VERSION,
     defaultProfile: config.defaultProfile,
+    groundedProfileName: config.groundedProfileName ?? GROUNDED_PROFILE_NAME,
     outputMetaFooter: typeof config.outputMetaFooter === "boolean" ? config.outputMetaFooter : true,
     profiles: Object.fromEntries(
       Object.entries(config.profiles).map(([name, profile]) => [name, sanitizeProfile(profile)])
@@ -1306,6 +1450,12 @@ function pickDefinedProfileFields(source) {
     secretName: optionalTrimmedString(source.secretName),
     apiKeyEnv: optionalTrimmedString(source.apiKeyEnv),
     baseUrl: optionalTrimmedString(source.baseUrl),
+    executionMode: optionalTrimmedString(source.executionMode),
+    groundingMode: optionalTrimmedString(source.groundingMode),
+    inputSource: optionalTrimmedString(source.inputSource),
+    strictDelegation: typeof source.strictDelegation === "boolean" ? source.strictDelegation : undefined,
+    maxImages: Number.isInteger(source.maxImages) ? source.maxImages : undefined,
+    maxImageBytes: Number.isInteger(source.maxImageBytes) ? source.maxImageBytes : undefined,
     timeoutMs: Number.isInteger(source.timeoutMs) ? source.timeoutMs : undefined,
     temperature: typeof source.temperature === "number" && Number.isFinite(source.temperature) ? source.temperature : undefined,
     maxTokens: Number.isInteger(source.maxTokens) ? source.maxTokens : undefined,
@@ -1328,6 +1478,29 @@ function pickDefinedProfileFields(source) {
       ? source.fallbackProfiles.map(optionalTrimmedString).filter(Boolean)
       : undefined
   });
+}
+
+function normalizeDelegationArgs(source) {
+  const args = { ...source };
+
+  args.executionMode = normalizeEnumValue(args.executionMode, EXECUTION_MODES, "executionMode", "raw");
+  args.groundingMode = normalizeEnumValue(args.groundingMode, GROUNDING_MODES, "groundingMode", "off");
+  args.inputSource = normalizeEnumValue(args.inputSource, INPUT_SOURCES, "inputSource", "direct");
+  args.strictDelegation = args.strictDelegation !== false;
+  args.maxImages = clampInteger(args.maxImages, 1, 16, DEFAULT_MAX_IMAGES);
+  args.maxImageBytes = clampInteger(args.maxImageBytes, 1024, 100 * 1024 * 1024, DEFAULT_MAX_IMAGE_BYTES);
+
+  return args;
+}
+
+function normalizeEnumValue(value, allowed, name, fallback) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (typeof value !== "string" || !allowed.has(value)) {
+    throw rpcError(-32602, `${name} must be one of: ${[...allowed].join(", ")}.`);
+  }
+  return value;
 }
 
 function normalizeFallbackProfileNames(source) {
