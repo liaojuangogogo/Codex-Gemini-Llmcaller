@@ -43,7 +43,6 @@ const DEFAULT_GROUNDED_PROFILE = {
   model: "gemini-2.5-flash",
   secretName: "gemini-default",
   timeoutMs: DEFAULT_TIMEOUT_MS,
-  thinkingLevel: "low",
   autoContinue: true,
   maxContinuationRounds: 2,
   groundingMode: "google_search",
@@ -55,7 +54,6 @@ const DEFAULT_GROUNDED_LITE_PROFILE = {
   model: "gemini-2.5-flash-lite",
   secretName: "gemini-default",
   timeoutMs: DEFAULT_TIMEOUT_MS,
-  thinkingLevel: "low",
   autoContinue: true,
   maxContinuationRounds: 2,
   groundingMode: "google_search"
@@ -1629,6 +1627,13 @@ function normalizeBuiltInGroundedProfile(profile, defaults) {
 
   if (defaults.fallbackProfiles && !Array.isArray(merged.fallbackProfiles)) {
     merged.fallbackProfiles = defaults.fallbackProfiles;
+  }
+  delete merged.thinkingLevel;
+  if (isPlainObject(merged.generationConfig) && isPlainObject(merged.generationConfig.thinkingConfig)) {
+    merged.generationConfig = {
+      ...merged.generationConfig
+    };
+    delete merged.generationConfig.thinkingConfig;
   }
 
   return merged;

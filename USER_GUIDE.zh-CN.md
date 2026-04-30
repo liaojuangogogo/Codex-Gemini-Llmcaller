@@ -20,6 +20,8 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 
 这样避免把 `gemini-3-flash-preview` 作为默认联网模型，降低 preview 模型在 Search grounding 场景下触发 429 的概率。
 
+联网内置 profile 不带 `thinkingLevel`。部分 Gemini 2.5 Flash grounding 调用不支持 `thinkingConfig.thinkingLevel`，保留该字段会导致 `Thinking level is not supported for this model`。
+
 你也可以在插件页把插件添加到会话后使用：
 
 ```text

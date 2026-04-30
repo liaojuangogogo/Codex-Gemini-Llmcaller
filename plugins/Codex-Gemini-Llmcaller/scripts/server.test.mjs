@@ -391,6 +391,7 @@ async function testGroundingAutoSwitchAndPromptIntegrity() {
     assert.equal(result.text, "grounded response");
     assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
     assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
+    assert.equal(captured.body.generationConfig?.thinkingConfig, undefined);
     assert.equal(captured.body.contents[0].parts[0].text, prompt);
     assert(!JSON.stringify(captured.body).includes("已核验事实"));
     assert(!JSON.stringify(captured.body).includes("深圳当前天气"));
@@ -868,15 +869,24 @@ async function testExistingGroundedProfileMigratesOffPreviewModel() {
         provider: "google",
         model: "gemini-3-flash-preview",
         apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
-        groundingMode: "google_search"
+        groundingMode: "google_search",
+        thinkingLevel: "low",
+        generationConfig: {
+          thinkingConfig: {
+            thinkingLevel: "low"
+          }
+        }
       }
     }
   }, null, 2));
 
-  let capturedUrl = null;
+  let captured = null;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    capturedUrl = url;
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
     return {
       ok: true,
       status: 200,
@@ -901,7 +911,8 @@ async function testExistingGroundedProfileMigratesOffPreviewModel() {
     });
 
     assert.equal(result.text, "migrated grounded response");
-    assert(capturedUrl.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert.equal(captured.body.generationConfig?.thinkingConfig, undefined);
     assert.equal(result.profileName, "gemini-grounded");
   } finally {
     globalThis.fetch = originalFetch;
