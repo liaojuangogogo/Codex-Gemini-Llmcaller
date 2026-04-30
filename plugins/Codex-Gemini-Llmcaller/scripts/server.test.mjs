@@ -294,6 +294,183 @@ async function testGeminiRequestShape() {
   }
 }
 
+async function testDelegationDefaultsDoNotGround() {
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "plain response" }]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "google",
+      model: "gemini-3-flash-preview",
+      apiKey: TEST_SECRET,
+      prompt: "用 Gemini 回答：介绍你自己。"
+    });
+
+    assert.equal(result.text, "plain response");
+    assert.equal(captured.body.tools, undefined, "default Gemini calls must not enable grounding tools");
+    assert.deepEqual(result.delegation, {
+      executionMode: "raw",
+      groundingMode: "off",
+      inputSource: "direct",
+      imageCount: 0,
+      strictDelegation: true,
+      codexPreprocessedFacts: false
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function testGroundingAutoSwitchAndPromptIntegrity() {
+  resetSecretStore();
+  writeFileSync(testConfigPath, JSON.stringify({
+    version: 1,
+    defaultProfile: "non-google",
+    groundedProfileName: "gemini-grounded",
+    profiles: {
+      "non-google": {
+        provider: "openai-compatible",
+        model: "external-model",
+        apiKeyEnv: "TEST_UNUSED_API_KEY"
+      }
+    }
+  }, null, 2));
+  const prompt = "调用 Gemini 返回今天的日期与深圳天气。";
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "grounded response" }]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      apiKey: TEST_SECRET,
+      prompt,
+      groundingMode: "google_search"
+    });
+
+    assert.equal(result.text, "grounded response");
+    assert(captured.url.endsWith("/models/gemini-3-flash-preview:generateContent"));
+    assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
+    assert.equal(captured.body.contents[0].parts[0].text, prompt);
+    assert(!JSON.stringify(captured.body).includes("已核验事实"));
+    assert(!JSON.stringify(captured.body).includes("深圳当前天气"));
+    assert.equal(result.profileName, "gemini-grounded");
+    assert.equal(result.delegation.groundingMode, "google_search");
+    assert.equal(result.delegation.codexPreprocessedFacts, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function testGeminiImageInputs() {
+  resetSecretStore();
+  const localImagePath = resolve(testDir, "sample.png");
+  const localBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const remoteBytes = Buffer.from([0xff, 0xd8, 0xff]);
+  writeFileSync(localImagePath, localBytes);
+
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    if (options.method === "GET") {
+      assert.equal(url.toString(), "https://example.com/image.jpg");
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: {
+          get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : null
+        },
+        arrayBuffer: async () => remoteBytes.buffer.slice(remoteBytes.byteOffset, remoteBytes.byteOffset + remoteBytes.byteLength)
+      };
+    }
+
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "image response" }]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "google",
+      model: "gemini-3-flash-preview",
+      apiKey: TEST_SECRET,
+      prompt: "用 Gemini 看这两张图。",
+      imageInputs: [
+        { path: localImagePath },
+        { url: "https://example.com/image.jpg" }
+      ]
+    });
+
+    const parts = captured.body.contents[0].parts;
+    assert.equal(result.text, "image response");
+    assert.equal(result.delegation.imageCount, 2);
+    assert.equal(parts[0].inline_data.mime_type, "image/png");
+    assert.equal(parts[0].inline_data.data, localBytes.toString("base64"));
+    assert.equal(parts[1].inline_data.mime_type, "image/jpeg");
+    assert.equal(parts[1].inline_data.data, remoteBytes.toString("base64"));
+    assert.equal(parts[2].text, "用 Gemini 看这两张图。");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 async function testProfileDefaults() {
   resetSecretStore();
   process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
@@ -806,6 +983,38 @@ async function testFailureScenarios() {
     /Unsupported provider/
   );
   await assert.rejects(
+    () => callModel({
+      provider: "openai-compatible",
+      model: "test-model",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      imageInputs: [
+        {
+          url: "https://example.com/image.png"
+        }
+      ]
+    }),
+    /imageInputs are currently supported only for provider 'google'/
+  );
+  await assert.rejects(
+    () => callModel({
+      provider: "google",
+      model: "gemini-3-flash-preview",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      maxImages: 1,
+      imageInputs: [
+        {
+          url: "https://example.com/one.png"
+        },
+        {
+          url: "https://example.com/two.png"
+        }
+      ]
+    }),
+    /at most 1 image/
+  );
+  await assert.rejects(
     () => handleToolCall({
       name: "profile_set",
       arguments: {
@@ -852,6 +1061,9 @@ try {
   await testSecretEncryption();
   await testSecretSetFromEnv();
   await testGeminiRequestShape();
+  await testDelegationDefaultsDoNotGround();
+  await testGroundingAutoSwitchAndPromptIntegrity();
+  await testGeminiImageInputs();
   await testProfileDefaults();
   await testGeminiAutoContinue();
   await testVisibleMetaFooter();

@@ -40,7 +40,7 @@ const DEFAULT_PROFILE = {
 
 const DEFAULT_GROUNDED_PROFILE = {
   provider: "google",
-  model: "gemini-2.5-flash",
+  model: "gemini-3-flash-preview",
   secretName: "gemini-default",
   timeoutMs: DEFAULT_TIMEOUT_MS,
   thinkingLevel: "low",
@@ -649,6 +649,9 @@ async function callModelAttempt(args) {
   if (typeof fetch !== "function") {
     throw new Error("Node.js 18 or newer is required because this server uses global fetch.");
   }
+  if (args.groundingMode === "google_search" && args.provider !== "google") {
+    throw rpcError(-32602, "groundingMode 'google_search' is currently supported only for provider 'google'.");
+  }
   if (hasImageInputs(args) && args.provider !== "google") {
     throw rpcError(-32602, "imageInputs are currently supported only for provider 'google'.");
   }
@@ -769,6 +772,16 @@ function integerOrNull(value) {
 function sumKnown(...values) {
   const integers = values.filter(Number.isInteger);
   return integers.length ? integers.reduce((sum, value) => sum + value, 0) : null;
+}
+
+function findLastIndex(values, predicate) {
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (predicate(values[index], index)) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function resolveOutputMetaFooter(args) {
@@ -960,6 +973,43 @@ async function callGoogle(args, messages, apiKey, timeoutMs) {
   };
 }
 
+async function prepareGoogleArgs(args, timeoutMs) {
+  if (Array.isArray(args.rawContents) && args.rawContents.length > 0 && hasImageInputs(args)) {
+    throw rpcError(-32602, "imageInputs cannot be combined with rawContents. Put image parts directly in rawContents or remove rawContents.");
+  }
+
+  const prepared = {
+    ...args
+  };
+
+  if (args.groundingMode === "google_search") {
+    prepared.tools = ensureGoogleSearchTool(Array.isArray(args.tools) ? args.tools : args.googleTools);
+    prepared.googleTools = undefined;
+  }
+
+  if (hasImageInputs(args)) {
+    prepared.resolvedImageParts = await resolveImageParts(args.imageInputs, args, timeoutMs);
+  }
+
+  return prepared;
+}
+
+function ensureGoogleSearchTool(tools) {
+  const normalizedTools = Array.isArray(tools) ? [...tools] : [];
+  const hasGoogleSearch = normalizedTools.some((tool) => isPlainObject(tool) && (
+    isPlainObject(tool.google_search) ||
+    isPlainObject(tool.googleSearch)
+  ));
+
+  return hasGoogleSearch
+    ? normalizedTools
+    : [...normalizedTools, { google_search: {} }];
+}
+
+function hasImageInputs(args) {
+  return Array.isArray(args.imageInputs) && args.imageInputs.length > 0;
+}
+
 function extractGoogleText(raw) {
   return Array.isArray(raw?.candidates?.[0]?.content?.parts)
     ? raw.candidates[0].content.parts.map((part) => part.text ?? "").join("")
@@ -1092,12 +1142,21 @@ function buildGoogleContents(args, messages) {
     return args.rawContents;
   }
 
-  return messages
-    .filter((message) => message.role !== "system")
-    .map((message) => ({
+  const nonSystemMessages = messages.filter((message) => message.role !== "system");
+  const lastUserIndex = findLastIndex(nonSystemMessages, (message) => message.role !== "assistant");
+  const imageParts = Array.isArray(args.resolvedImageParts) ? args.resolvedImageParts : [];
+
+  return nonSystemMessages.map((message, index) => {
+    const parts = [{ text: message.content }];
+    if (index === lastUserIndex && imageParts.length) {
+      parts.unshift(...imageParts);
+    }
+
+    return {
       role: message.role === "assistant" ? "model" : "user",
-      parts: [{ text: message.content }]
-    }));
+      parts
+    };
+  });
 }
 
 function normalizeGoogleSystemInstruction(systemInstruction, fallbackText) {
@@ -1139,6 +1198,136 @@ function buildGoogleGenerationConfig(args) {
   }
 
   return generationConfig;
+}
+
+async function resolveImageParts(imageInputs, args, timeoutMs) {
+  if (!Array.isArray(imageInputs)) {
+    return [];
+  }
+
+  const maxImages = clampInteger(args.maxImages, 1, 16, DEFAULT_MAX_IMAGES);
+  const maxImageBytes = clampInteger(args.maxImageBytes, 1024, 100 * 1024 * 1024, DEFAULT_MAX_IMAGE_BYTES);
+
+  if (imageInputs.length > maxImages) {
+    throw rpcError(-32602, `imageInputs supports at most ${maxImages} image(s).`);
+  }
+
+  const parts = [];
+  for (let index = 0; index < imageInputs.length; index += 1) {
+    const input = imageInputs[index];
+    if (!isPlainObject(input)) {
+      throw rpcError(-32602, `imageInputs[${index}] must be an object.`);
+    }
+    parts.push(await resolveImagePart(input, index, maxImageBytes, timeoutMs));
+  }
+
+  return parts;
+}
+
+async function resolveImagePart(input, index, maxImageBytes, timeoutMs) {
+  const hasPath = typeof input.path === "string" && input.path.trim();
+  const hasUrl = typeof input.url === "string" && input.url.trim();
+
+  if (hasPath === hasUrl) {
+    throw rpcError(-32602, `imageInputs[${index}] must provide exactly one of path or url.`);
+  }
+
+  if (hasPath) {
+    const filePath = resolve(input.path.trim());
+    const bytes = readFileSync(filePath);
+    assertImageSize(bytes.length, maxImageBytes, `imageInputs[${index}]`);
+    const mimeType = normalizeImageMimeType(input.mimeType, filePath);
+    return inlineImagePart(bytes, mimeType);
+  }
+
+  return downloadImagePart(input.url.trim(), input.mimeType, index, maxImageBytes, timeoutMs);
+}
+
+async function downloadImagePart(urlText, explicitMimeType, index, maxImageBytes, timeoutMs) {
+  let url;
+  try {
+    url = new URL(urlText);
+  } catch {
+    throw rpcError(-32602, `imageInputs[${index}].url must be a valid URL.`);
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw rpcError(-32602, `imageInputs[${index}].url must use http or https.`);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const contentLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
+    if (Number.isInteger(contentLength)) {
+      assertImageSize(contentLength, maxImageBytes, `imageInputs[${index}]`);
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assertImageSize(bytes.length, maxImageBytes, `imageInputs[${index}]`);
+    const mimeType = normalizeImageMimeType(explicitMimeType || response.headers.get("content-type"), url.pathname);
+    return inlineImagePart(bytes, mimeType);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw rpcError(-32603, `Timed out downloading imageInputs[${index}] after ${timeoutMs} ms.`);
+    }
+    throw rpcError(-32603, `Could not download imageInputs[${index}]: ${error?.message ?? "Unknown error"}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function inlineImagePart(bytes, mimeType) {
+  return {
+    inline_data: {
+      mime_type: mimeType,
+      data: Buffer.from(bytes).toString("base64")
+    }
+  };
+}
+
+function assertImageSize(byteLength, maxImageBytes, label) {
+  if (byteLength > maxImageBytes) {
+    throw rpcError(-32602, `${label} is ${byteLength} bytes, above maxImageBytes ${maxImageBytes}.`);
+  }
+}
+
+function normalizeImageMimeType(value, pathHint) {
+  const explicit = typeof value === "string"
+    ? value.split(";")[0].trim().toLowerCase()
+    : "";
+  const mimeType = explicit || mimeTypeFromPath(pathHint);
+
+  if (!["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"].includes(mimeType)) {
+    throw rpcError(-32602, `Unsupported image MIME type '${mimeType || "unknown"}'. Supported types: image/png, image/jpeg, image/webp, image/heic, image/heif.`);
+  }
+
+  return mimeType;
+}
+
+function mimeTypeFromPath(pathHint) {
+  switch (extname(pathHint || "").toLowerCase()) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".heic":
+      return "image/heic";
+    case ".heif":
+      return "image/heif";
+    default:
+      return "";
+  }
 }
 
 function handleConfigGet() {
@@ -1194,8 +1383,8 @@ function handleProfileDelete(args) {
   ensureConfigWritable(config);
   const deleted = Boolean(config.profiles[name]);
 
-  if (name === DEFAULT_PROFILE_NAME) {
-    throw rpcError(-32602, `Profile '${DEFAULT_PROFILE_NAME}' is built in and cannot be deleted.`);
+  if (name === DEFAULT_PROFILE_NAME || name === GROUNDED_PROFILE_NAME) {
+    throw rpcError(-32602, `Profile '${name}' is built in and cannot be deleted.`);
   }
   if (deleted) {
     delete config.profiles[name];
@@ -1301,8 +1490,7 @@ function shouldAutoSwitchToGroundedProfile(args, explicitArgs) {
 function supportsGoogleSearchGrounding(args) {
   return args.provider === "google" &&
     typeof args.model === "string" &&
-    args.model.trim().startsWith("gemini-") &&
-    !/(^|[-_.])(preview|experimental|exp)([-_.]|$)/iu.test(args.model);
+    args.model.trim().startsWith("gemini-");
 }
 
 function readConfigStore() {
@@ -1356,7 +1544,8 @@ function defaultConfigStore() {
     groundedProfileName: GROUNDED_PROFILE_NAME,
     outputMetaFooter: true,
     profiles: {
-      [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE }
+      [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE },
+      [GROUNDED_PROFILE_NAME]: { ...DEFAULT_GROUNDED_PROFILE }
     }
   };
 }
