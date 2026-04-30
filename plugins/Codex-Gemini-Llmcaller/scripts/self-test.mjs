@@ -55,6 +55,7 @@ async function main() {
   for (const script of [
     "plugins/Codex-Gemini-Llmcaller/scripts/server.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs",
+    "plugins/Codex-Gemini-Llmcaller/scripts/call-model-local.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/check-env.mjs",

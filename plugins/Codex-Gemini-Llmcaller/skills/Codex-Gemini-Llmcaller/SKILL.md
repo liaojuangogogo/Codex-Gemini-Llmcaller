@@ -17,6 +17,7 @@ When the user asks Gemini or another external model to answer, review, check, re
 - Pass the user's original request and any necessary conversation context through unchanged.
 - If the Gemini tool is unavailable or the call fails, return a clear error instead of producing a substitute Codex answer.
 - Shell may be used only as a local invocation wrapper when the MCP tool is not directly exposed; it must not be used to collect factual source material.
+- If using a local fallback wrapper, always print the formatted MCP tool text. Do not call `callModel()` and print only `.text`, because that drops model/token footer. Prefer `handleToolCall({ name: "call_model", arguments })` and output `result.content[0].text`, or use `scripts/call-model-local.mjs` with JSON arguments on stdin.
 
 ## Mode selection
 
@@ -35,6 +36,21 @@ Use `imageInputs` when the user asks Gemini to inspect a screenshot, image, pict
 ## Ordinary calls
 
 For ordinary usage, call `call_model` with the selected mode fields plus the prompt or messages. Do not require the user to say `secretName` or `gemini-default`. The server resolves the configured default profile, initially `gemini-default`.
+
+When the direct MCP `call_model` tool is not exposed in the current session, use the bundled local wrapper instead of manually importing `callModel()`:
+
+```powershell
+@'
+{
+  "prompt": "用 Gemini 回答：介绍你自己。",
+  "executionMode": "raw",
+  "groundingMode": "off",
+  "strictDelegation": true
+}
+'@ | node ./scripts/call-model-local.mjs
+```
+
+The wrapper prints the same formatted text as the MCP tool, including the visible model/profile/token footer when `outputMetaFooter` is enabled.
 
 Examples:
 

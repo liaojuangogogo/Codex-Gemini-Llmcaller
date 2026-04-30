@@ -124,3 +124,33 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
 预期：插件可在当前会话中调用，不需要手动 import `server.mjs`。
+
+## 9. 兜底调用 footer 验证
+
+如果当前会话没有直接暴露 `call_model`，可在已安装插件目录中验证兜底脚本：
+
+```powershell
+@'
+{
+  "prompt": "用 Gemini 回答：只输出 OK。",
+  "executionMode": "raw",
+  "groundingMode": "off",
+  "strictDelegation": true
+}
+'@ | node ./scripts/call-model-local.mjs
+```
+
+预期：
+
+- 输出来自 Gemini。
+- 如果 `outputMetaFooter` 为 `true`，末尾包含 `模型`、`Profile`、`Tokens`。
+- 不应只输出裸 `result.text`。
+
+## 10. 联网 429 与模型降级
+
+联网请求触发 `HTTP 429 RESOURCE_EXHAUSTED` 时，预期行为：
+
+- 错误信息明确说明这是 Gemini Google Search grounding 配额/速率限制。
+- 如果 profile 配置了 `fallbackProfiles`，插件继续尝试 fallback。
+- 内置联网 fallback 顺序为 `gemini-2.5-flash`、`gemini-2.5-flash-lite`、`gemini-2.0-flash`。
+- 如果全部 fallback 都失败，返回可读错误，不由 Codex 冒充 Gemini 回答。

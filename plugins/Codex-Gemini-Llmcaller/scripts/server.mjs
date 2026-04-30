@@ -40,10 +40,32 @@ const DEFAULT_PROFILE = {
 
 const DEFAULT_GROUNDED_PROFILE = {
   provider: "google",
-  model: "gemini-3-flash-preview",
+  model: "gemini-2.5-flash",
   secretName: "gemini-default",
   timeoutMs: DEFAULT_TIMEOUT_MS,
   thinkingLevel: "low",
+  autoContinue: true,
+  maxContinuationRounds: 2,
+  groundingMode: "google_search",
+  fallbackProfiles: ["gemini-grounded-lite", "gemini-grounded-20-flash"]
+};
+
+const DEFAULT_GROUNDED_LITE_PROFILE = {
+  provider: "google",
+  model: "gemini-2.5-flash-lite",
+  secretName: "gemini-default",
+  timeoutMs: DEFAULT_TIMEOUT_MS,
+  thinkingLevel: "low",
+  autoContinue: true,
+  maxContinuationRounds: 2,
+  groundingMode: "google_search"
+};
+
+const DEFAULT_GROUNDED_20_FLASH_PROFILE = {
+  provider: "google",
+  model: "gemini-2.0-flash",
+  secretName: "gemini-default",
+  timeoutMs: DEFAULT_TIMEOUT_MS,
   autoContinue: true,
   maxContinuationRounds: 2,
   groundingMode: "google_search"
@@ -856,7 +878,7 @@ async function callOpenAiCompatible(args, messages, apiKey, timeoutMs) {
   const raw = await postJson(url, body, {
     Authorization: `Bearer ${apiKey}`,
     ...safeHeaders(args.headers)
-  }, timeoutMs, [apiKey]);
+  }, timeoutMs, [apiKey], args);
   const text = raw?.choices?.[0]?.message?.content ?? raw?.choices?.[0]?.text ?? "";
 
   return {
@@ -895,7 +917,7 @@ async function callAnthropic(args, messages, apiKey, timeoutMs) {
     "x-api-key": apiKey,
     "anthropic-version": process.env.ANTHROPIC_VERSION || "2023-06-01",
     ...safeHeaders(args.headers)
-  }, timeoutMs, [apiKey]);
+  }, timeoutMs, [apiKey], args);
   const text = Array.isArray(raw?.content)
     ? raw.content
         .filter((part) => part?.type === "text")
@@ -929,7 +951,7 @@ async function callGoogle(args, messages, apiKey, timeoutMs) {
 
   for (let round = 0; round <= maxContinuationRounds; round += 1) {
     request = buildGoogleRequest(currentArgs, currentMessages, apiKey);
-    const raw = await postJson(request.url, request.body, request.headers, timeoutMs, [apiKey]);
+    const raw = await postJson(request.url, request.body, request.headers, timeoutMs, [apiKey], currentArgs);
     const text = extractGoogleText(raw);
     const finishReason = raw?.candidates?.[0]?.finishReason ?? "UNKNOWN";
 
@@ -1386,6 +1408,9 @@ function handleProfileDelete(args) {
   if (name === DEFAULT_PROFILE_NAME || name === GROUNDED_PROFILE_NAME) {
     throw rpcError(-32602, `Profile '${name}' is built in and cannot be deleted.`);
   }
+  if (["gemini-grounded-lite", "gemini-grounded-20-flash"].includes(name)) {
+    throw rpcError(-32602, `Profile '${name}' is built in and cannot be deleted.`);
+  }
   if (deleted) {
     delete config.profiles[name];
     if (config.defaultProfile === name) {
@@ -1477,20 +1502,11 @@ function shouldAutoSwitchToGroundedProfile(args, explicitArgs) {
   if (args.groundingMode !== "google_search") {
     return false;
   }
-  if (supportsGoogleSearchGrounding(args)) {
-    return false;
-  }
 
   return !explicitArgs.profileName &&
     !explicitArgs.provider &&
     !explicitArgs.model &&
     !explicitArgs.baseUrl;
-}
-
-function supportsGoogleSearchGrounding(args) {
-  return args.provider === "google" &&
-    typeof args.model === "string" &&
-    args.model.trim().startsWith("gemini-");
 }
 
 function readConfigStore() {
@@ -1545,7 +1561,9 @@ function defaultConfigStore() {
     outputMetaFooter: true,
     profiles: {
       [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE },
-      [GROUNDED_PROFILE_NAME]: { ...DEFAULT_GROUNDED_PROFILE }
+      [GROUNDED_PROFILE_NAME]: { ...DEFAULT_GROUNDED_PROFILE },
+      "gemini-grounded-lite": { ...DEFAULT_GROUNDED_LITE_PROFILE },
+      "gemini-grounded-20-flash": { ...DEFAULT_GROUNDED_20_FLASH_PROFILE }
     }
   };
 }
@@ -1563,6 +1581,7 @@ function normalizeConfigStore(parsed, defaults) {
       profiles[normalizeProfileName(name)] = sanitizeProfile(profile);
     }
   }
+  normalizeBuiltInGroundedProfiles(profiles);
 
   const defaultProfile = typeof parsed.defaultProfile === "string" && profiles[parsed.defaultProfile]
     ? parsed.defaultProfile
@@ -1578,6 +1597,41 @@ function normalizeConfigStore(parsed, defaults) {
     outputMetaFooter: typeof parsed.outputMetaFooter === "boolean" ? parsed.outputMetaFooter : defaults.outputMetaFooter,
     profiles
   };
+}
+
+function normalizeBuiltInGroundedProfiles(profiles) {
+  profiles[GROUNDED_PROFILE_NAME] = normalizeBuiltInGroundedProfile(
+    profiles[GROUNDED_PROFILE_NAME],
+    DEFAULT_GROUNDED_PROFILE
+  );
+  profiles["gemini-grounded-lite"] = normalizeBuiltInGroundedProfile(
+    profiles["gemini-grounded-lite"],
+    DEFAULT_GROUNDED_LITE_PROFILE
+  );
+  profiles["gemini-grounded-20-flash"] = normalizeBuiltInGroundedProfile(
+    profiles["gemini-grounded-20-flash"],
+    DEFAULT_GROUNDED_20_FLASH_PROFILE
+  );
+}
+
+function normalizeBuiltInGroundedProfile(profile, defaults) {
+  const merged = {
+    ...defaults,
+    ...profile,
+    provider: "google",
+    secretName: profile?.secretName ?? defaults.secretName,
+    groundingMode: "google_search"
+  };
+
+  if (merged.model === "gemini-3-flash-preview") {
+    merged.model = defaults.model;
+  }
+
+  if (defaults.fallbackProfiles && !Array.isArray(merged.fallbackProfiles)) {
+    merged.fallbackProfiles = defaults.fallbackProfiles;
+  }
+
+  return merged;
 }
 
 function publicConfig(config) {
@@ -2171,7 +2225,7 @@ function fingerprintSecret(value) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-async function postJson(url, body, headers, timeoutMs, secretValues = []) {
+async function postJson(url, body, headers, timeoutMs, secretValues = [], callArgs = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -2190,7 +2244,7 @@ async function postJson(url, body, headers, timeoutMs, secretValues = []) {
 
     if (!response.ok) {
       const detail = typeof payload === "string" ? payload : JSON.stringify(payload);
-      throw new Error(redactSensitive(`HTTP ${response.status} ${response.statusText}: ${detail}`, secretValues));
+      throw new Error(redactSensitive(formatHttpErrorMessage(response, detail, callArgs), secretValues));
     }
 
     return payload;
@@ -2199,12 +2253,33 @@ async function postJson(url, body, headers, timeoutMs, secretValues = []) {
       throw new Error(`Request timed out after ${timeoutMs} ms.`);
     }
     if (shouldUsePowerShellHttpFallback(error)) {
-      return postJsonViaPowerShell(url, body, headers, timeoutMs, secretValues);
+      return postJsonViaPowerShell(url, body, headers, timeoutMs, secretValues, callArgs);
     }
     throw error;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function formatHttpErrorMessage(response, detail, callArgs = {}) {
+  const base = `HTTP ${response.status} ${response.statusText}: ${detail}`;
+
+  if (response.status === 429 && callArgs.provider === "google" && callArgs.groundingMode === "google_search") {
+    return [
+      base,
+      "Gemini Google Search grounding returned 429 RESOURCE_EXHAUSTED. This usually means the API key or Google Cloud project hit a Search grounding quota/rate limit, not that local API key decryption failed.",
+      "Recommended actions: wait for quota recovery, reduce grounded calls, check AI Studio/Google Cloud billing and quota, or switch the grounded profile to gemini-2.5-flash / gemini-2.5-flash-lite / gemini-2.0-flash."
+    ].join("\n");
+  }
+
+  if (response.status === 429) {
+    return [
+      base,
+      "The provider returned 429 RESOURCE_EXHAUSTED or rate limited. Retry after the quota window recovers, reduce request frequency, or switch to a fallback profile."
+    ].join("\n");
+  }
+
+  return base;
 }
 
 function shouldUsePowerShellHttpFallback(error) {
@@ -2216,7 +2291,7 @@ function shouldUsePowerShellHttpFallback(error) {
   );
 }
 
-function postJsonViaPowerShell(url, body, headers, timeoutMs, secretValues) {
+function postJsonViaPowerShell(url, body, headers, timeoutMs, secretValues, callArgs = {}) {
   const script = [
     "$ErrorActionPreference = 'Stop'",
     "$encoded = [Console]::In.ReadToEnd()",
@@ -2274,8 +2349,16 @@ function postJsonViaPowerShell(url, body, headers, timeoutMs, secretValues) {
   }
   if (result.status !== 0) {
     const detail = parseJsonOrText(result.stderr.trim());
+    const status = integerOrNull(detail?.status);
+    const content = isPlainObject(detail)
+      ? detail.content || detail.message || "Unknown error"
+      : result.stderr.trim() || result.stdout.trim();
+    const responseLike = {
+      status: status ?? 0,
+      statusText: status ? "PowerShell HTTP fallback" : ""
+    };
     const message = isPlainObject(detail)
-      ? `PowerShell HTTP fallback failed${detail.status ? ` with HTTP ${detail.status}` : ""}: ${detail.content || detail.message || "Unknown error"}`
+      ? `PowerShell HTTP fallback failed${status ? ` with ${formatHttpErrorMessage(responseLike, content, callArgs)}` : `: ${content}`}`
       : `PowerShell HTTP fallback failed: ${result.stderr.trim() || result.stdout.trim()}`;
     throw new Error(redactSensitive(message, secretValues));
   }

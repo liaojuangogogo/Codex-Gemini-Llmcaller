@@ -389,7 +389,7 @@ async function testGroundingAutoSwitchAndPromptIntegrity() {
     });
 
     assert.equal(result.text, "grounded response");
-    assert(captured.url.endsWith("/models/gemini-3-flash-preview:generateContent"));
+    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
     assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
     assert.equal(captured.body.contents[0].parts[0].text, prompt);
     assert(!JSON.stringify(captured.body).includes("已核验事实"));
@@ -851,6 +851,64 @@ async function testInvalidConfigFallback() {
   );
 }
 
+async function testExistingGroundedProfileMigratesOffPreviewModel() {
+  resetSecretStore();
+  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  writeFileSync(testConfigPath, JSON.stringify({
+    version: 1,
+    defaultProfile: "gemini-default",
+    groundedProfileName: "gemini-grounded",
+    profiles: {
+      "gemini-default": {
+        provider: "google",
+        model: "gemini-3-flash-preview",
+        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY"
+      },
+      "gemini-grounded": {
+        provider: "google",
+        model: "gemini-3-flash-preview",
+        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        groundingMode: "google_search"
+      }
+    }
+  }, null, 2));
+
+  let capturedUrl = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    capturedUrl = url;
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "migrated grounded response" }]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      prompt: "调用 Gemini 返回今天深圳天气。",
+      groundingMode: "google_search"
+    });
+
+    assert.equal(result.text, "migrated grounded response");
+    assert(capturedUrl.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert.equal(result.profileName, "gemini-grounded");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+  }
+}
+
 async function testProfileFallback() {
   resetSecretStore();
   process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
@@ -933,6 +991,97 @@ async function testProfileFallback() {
   }
 }
 
+async function testGroundingFallbackAnd429Message() {
+  resetSecretStore();
+  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  const capturedUrls = [];
+  let calls = 0;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    calls += 1;
+    capturedUrls.push(url);
+
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 429,
+        statusText: "Too Many Requests",
+        text: async () => JSON.stringify({
+          error: {
+            status: "RESOURCE_EXHAUSTED",
+            message: `quota exhausted ${TEST_SECRET}`
+          }
+        })
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "grounded fallback response" }]
+            },
+            finishReason: "STOP"
+          }
+        ],
+        usageMetadata: {
+          promptTokenCount: 2,
+          candidatesTokenCount: 3,
+          totalTokenCount: 5
+        }
+      })
+    };
+  };
+
+  try {
+    await handleToolCall({
+      name: "profile_set",
+      arguments: {
+        name: "primary-grounded",
+        provider: "google",
+        model: "gemini-2.5-flash",
+        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        groundingMode: "google_search",
+        fallbackProfiles: ["backup-grounded"],
+        setDefault: true
+      }
+    });
+    await handleToolCall({
+      name: "profile_set",
+      arguments: {
+        name: "backup-grounded",
+        provider: "google",
+        model: "gemini-2.0-flash",
+        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        groundingMode: "google_search"
+      }
+    });
+
+    const result = await callModel({
+      profileName: "primary-grounded",
+      prompt: "调用 Gemini 返回今天深圳天气。",
+      groundingMode: "google_search"
+    });
+
+    assert.equal(calls, 2);
+    assert(capturedUrls[0].endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert(capturedUrls[1].endsWith("/models/gemini-2.0-flash:generateContent"));
+    assert.equal(result.text, "grounded fallback response");
+    assert.equal(result.profileName, "backup-grounded");
+    assert.equal(result.fallbackUsed, true);
+    assert(result.fallbackFailures[0].message.includes("Search grounding returned 429 RESOURCE_EXHAUSTED"));
+    assert(!JSON.stringify(result).includes(TEST_SECRET), "grounding fallback metadata must not contain plaintext key");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+  }
+}
+
 function testRawGeminiBody() {
   const body = buildGoogleBody({
     rawContents: [
@@ -957,6 +1106,8 @@ function testRawGeminiBody() {
 }
 
 async function testFailureScenarios() {
+  resetSecretStore();
+
   await assert.rejects(
     () => callModel({
       provider: "openai-compatible",
@@ -1070,7 +1221,9 @@ try {
   await testOutputMetaFooterConfigPrecedence();
   await testProviderTokenUsageMappings();
   await testInvalidConfigFallback();
+  await testExistingGroundedProfileMigratesOffPreviewModel();
   await testProfileFallback();
+  await testGroundingFallbackAnd429Message();
   testRawGeminiBody();
   await testFailureScenarios();
   console.log("server tests ok");

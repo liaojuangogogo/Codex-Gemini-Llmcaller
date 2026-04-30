@@ -1,6 +1,6 @@
 # Codex-Gemini-Llmcaller
 
-`Codex-Gemini-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过本地配置文件自定义模型、超时时间、token、fallback 和自动续写。
+`Codex-Gemini-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过本地配置文件自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
 
 ## 快速安装
 
@@ -41,6 +41,12 @@ node ./setup.mjs
 ```text
 @Codex-Gemini-Llmcaller 检查上面的回答。
 ```
+
+## 联网与降级
+
+普通问题默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding，而不是由 Codex 先查资料。
+
+联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。如果联网调用返回 `HTTP 429 RESOURCE_EXHAUSTED`，通常是 Search grounding 配额或速率限制，插件会返回明确错误并尝试配置的 fallback。
 
 ## 自测
 

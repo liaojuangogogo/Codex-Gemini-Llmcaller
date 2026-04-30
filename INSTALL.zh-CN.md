@@ -69,6 +69,8 @@ Remove-Item Env:\GEMINI_API_KEY
 
 默认会使用 `gemini-default` profile，不需要每次说明 `secretName`。
 
+普通请求默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding；Codex 不会先查资料再喂给 Gemini。内置联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。
+
 ## 6. 故障排查
 
 只检查环境，不安装：
