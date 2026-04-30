@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "Codex-Gemini-Llmcaller": {
+      "command": "node",
+      "args": [
+        "./scripts/server.mjs"
+      ]
+    }
+  }
+}

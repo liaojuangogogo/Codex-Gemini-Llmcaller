@@ -1,0 +1,42 @@
+{
+  "name": "Codex-Gemini-Llmcaller",
+  "version": "0.3.2",
+  "description": "Call API-key authenticated model providers through local profiles, encrypted secrets, Gemini grounding, image inputs, fallback profiles, and automatic continuation.",
+  "author": {
+    "name": "Local Developer",
+    "email": "local@example.com",
+    "url": "https://example.com"
+  },
+  "homepage": "https://modelcontextprotocol.io/",
+  "repository": "https://example.com/Codex-Gemini-Llmcaller",
+  "license": "MIT",
+  "keywords": [
+    "llm",
+    "api-key",
+    "mcp",
+    "openai-compatible",
+    "anthropic",
+    "gemini"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex-Gemini-Llmcaller",
+    "shortDescription": "Call models through local profiles",
+    "longDescription": "Use a local MCP server to call OpenAI-compatible providers, Anthropic, and the native Gemini REST API with encrypted local secrets, configurable profiles, strict delegation metadata, Gemini Google Search grounding, image inputs, fallback profiles, default Gemini usage, and automatic continuation for truncated responses.",
+    "developerName": "Local Developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://modelcontextprotocol.io/",
+    "privacyPolicyURL": "https://example.com/privacy",
+    "termsOfServiceURL": "https://example.com/terms",
+    "defaultPrompt": [
+      "Use Gemini to review this answer.",
+      "Configure my default model profile.",
+      "Compare this with another model."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

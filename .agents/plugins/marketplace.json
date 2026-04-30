@@ -1,0 +1,20 @@
+{
+  "name": "codex-gemini-llmcaller-local",
+  "interface": {
+    "displayName": "Codex-Gemini-Llmcaller Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "Codex-Gemini-Llmcaller",
+      "source": {
+        "source": "local",
+        "path": "./plugins/Codex-Gemini-Llmcaller"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
