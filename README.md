@@ -36,13 +36,38 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 
 ## 使用方式
 
-方式一：直接在会话中叫 Gemini。
+默认 Gemini：
 
 ```text
 用 Gemini 检查一下这个回答。
 ```
 
-方式二：在 Codex 的插件页把插件添加到会话后使用。
+DeepSeek：
+
+```text
+用 DeepSeek 检查一下这个回答。
+```
+
+DeepSeek 高质量核对：
+
+```text
+用 DeepSeek Pro 检查上面的方案，返回主要问题和修改建议。
+```
+
+自动路由：
+
+```text
+让插件自动选择合适模型，检查上面的回答是否合理。
+```
+
+联网或图片场景应使用 Gemini：
+
+```text
+用 Gemini 联网查询今天的公开信息后回答。
+用 Gemini 看这张截图并指出问题。
+```
+
+在 Codex 的插件页把插件添加到会话后也可使用：
 
 1. 左侧进入“插件”。
 2. 顶部选择“插件”页签。
@@ -53,6 +78,8 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 ```text
 @Codex-Gemini-Llmcaller 检查上面的回答。
 ```
+
+如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-grounded`、`deepseek-default`、`deepseek-pro`。
 
 ## 联网与降级
 

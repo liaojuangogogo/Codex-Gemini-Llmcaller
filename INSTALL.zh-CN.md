@@ -89,7 +89,9 @@ Remove-Item Env:\DEEPSEEK_API_KEY
 
 ## 5. 直接使用
 
-如果插件已安装并且客户端已重启，也可以不手动添加插件，直接在会话中说：
+如果插件已安装并且客户端已重启，也可以不手动添加插件，直接在会话中按模型说明使用。
+
+默认 Gemini：
 
 ```text
 用 Gemini 检查一下这个回答。
@@ -97,9 +99,33 @@ Remove-Item Env:\DEEPSEEK_API_KEY
 
 默认会使用 `gemini-default` profile，不需要每次说明 `secretName`。
 
-如果初始化时设置了 `--default-profile deepseek-default`，默认会使用 `deepseek-default`。也可以在调用时明确说使用 DeepSeek，或通过 `profileName` 指定。
+DeepSeek：
+
+```text
+用 DeepSeek 检查一下这个回答。
+```
+
+默认使用 `deepseek-default`；如果要更高质量或 reasoning，可说：
+
+```text
+用 DeepSeek Pro 检查上面的方案。
+```
+
+对应 `deepseek-pro` profile。
+
+自动路由：
+
+```text
+让插件自动选择合适模型，检查上面的回答是否合理。
+```
+
+这类请求会使用 `routingMode: "auto"`，由插件根据场景选择 profile。
+
+如果初始化时设置了 `--default-profile deepseek-default`，不明确指定模型时默认会使用 `deepseek-default`。也可以在调用时明确说使用 Gemini、DeepSeek，或通过 `profileName` 指定。
 
 普通请求默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding；Codex 不会先查资料再喂给 Gemini。内置联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。
+
+图片输入目前由 Gemini 支持；DeepSeek 内置 profile 不支持图片输入或 Google Search grounding。
 
 ## 6. 故障排查
 

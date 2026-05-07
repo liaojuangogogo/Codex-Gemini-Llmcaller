@@ -160,7 +160,31 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deeps
 用 Gemini 回答：只输出 OK。
 ```
 
-预期：不需要说明 `secretName`，插件自动使用默认 profile。
+预期：不需要说明 `secretName`，插件自动使用 Gemini 默认 profile。
+
+DeepSeek：
+
+```text
+用 DeepSeek 检查上面的回答。
+```
+
+预期：使用 `deepseek-default` profile。
+
+DeepSeek Pro：
+
+```text
+用 DeepSeek Pro 检查上面的方案。
+```
+
+预期：使用 `deepseek-pro` profile。
+
+自动路由：
+
+```text
+让插件自动选择合适模型，检查上面的回答是否合理。
+```
+
+预期：调用中体现 `routingMode: "auto"`，并按场景选择 profile。
 
 插件页添加方式：
 

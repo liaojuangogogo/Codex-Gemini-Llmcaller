@@ -2,15 +2,25 @@
 
 `Codex-Gemini-Llmcaller` 用于在 Codex 会话中调用 Gemini 或其他 API-key 模型。普通用户安装一次后即可直接使用；高级用户通过本地 `config.json` 配置模型、超时、token、自动续写、fallback 和输出元信息。
 
-## 1. 默认使用
+## 1. 按模型使用
 
-安装并重启 Codex Desktop 后，直接在会话中说：
+安装并重启 Codex Desktop 后，可以按模型表达意图。
+
+### 1.1 Gemini 默认模型
+
+适合普通问答、图片输入、需要 Google Search grounding 的联网场景：
 
 ```text
 用 Gemini 检查一下这个回答。
 ```
 
 默认使用 `gemini-default` profile 和同名本地加密 secret。
+
+如果明确需要联网：
+
+```text
+用 Gemini 联网查询今天的公开信息后回答。
+```
 
 如果需要联网，插件会自动使用 `gemini-grounded` profile。内置联网降级顺序是：
 
@@ -21,6 +31,32 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 这样避免把 `gemini-3-flash-preview` 作为默认联网模型，降低 preview 模型在 Search grounding 场景下触发 429 的概率。
 
 联网内置 profile 不带 `thinkingLevel`。部分 Gemini 2.5 Flash grounding 调用不支持 `thinkingConfig.thinkingLevel`，保留该字段会导致 `Thinking level is not supported for this model`。
+
+### 1.2 DeepSeek
+
+适合核对 Codex 回答、方案评审、低成本文本审查：
+
+```text
+用 DeepSeek 检查一下这个回答。
+```
+
+默认使用 `deepseek-default` profile。需要更强 reasoning 时：
+
+```text
+用 DeepSeek Pro 检查上面的方案，返回主要风险和修改建议。
+```
+
+对应使用 `deepseek-pro` profile。DeepSeek 不支持 Gemini Google Search grounding 和图片输入；需要联网或图片时应使用 Gemini。
+
+### 1.3 自动路由
+
+如果希望插件自己选择模型和是否联网：
+
+```text
+让插件自动选择合适模型，检查上面的回答是否合理。
+```
+
+这类请求应使用 `routingMode: "auto"`。自动路由会在可用时优先用 DeepSeek 做上文核对；遇到今天、最新、天气、新闻、价格、搜索、联网、实时等信息时切到 Gemini grounded；遇到图片输入时使用 Gemini。
 
 你也可以在插件页把插件添加到会话后使用：
 

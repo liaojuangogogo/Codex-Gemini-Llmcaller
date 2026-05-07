@@ -41,6 +41,14 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 
 普通场景调用 `call_model`，传入已选择的模式字段以及 `prompt` 或 `messages`。不要要求用户说出 `secretName` 或 `gemini-default`。server 会解析配置中的默认 profile，初始为 `gemini-default`。
 
+按模型体现使用方式：
+
+- 用户说 Gemini：使用默认 Gemini profile；联网或图片场景优先 Gemini。
+- 用户说 DeepSeek：使用 `profileName: "deepseek-default"`。
+- 用户说 DeepSeek Pro、强推理、高质量评审：使用 `profileName: "deepseek-pro"`。
+- 用户说自动选择模型、自动判断是否联网、路由判断：使用 `routingMode: "auto"`。
+- 用户只说外部模型但没有指定模型：保持默认 profile，不主动切换，除非用户要求自动路由。
+
 如果用户明确要求 DeepSeek，优先使用 `profileName: "deepseek-default"`；高质量或 reasoning 场景可使用 `profileName: "deepseek-pro"`。如果用户要求联网搜索或图片理解，DeepSeek 不支持 Gemini Google Search grounding 和 `imageInputs`，应改用支持该能力的 Gemini profile。
 
 当前会话未直接暴露 `call_model` MCP tool 时，使用本地包装脚本，不要手动 import `callModel()`：
@@ -80,6 +88,29 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 
 ```json
 {
+  "profileName": "deepseek-default",
+  "prompt": "用 DeepSeek 检查上面的回答。",
+  "executionMode": "review",
+  "inputSource": "context",
+  "outputMode": "json",
+  "strictDelegation": true
+}
+```
+
+```json
+{
+  "profileName": "deepseek-pro",
+  "prompt": "用 DeepSeek Pro 检查上面的方案，返回主要风险和修改建议。",
+  "executionMode": "review",
+  "inputSource": "context",
+  "outputMode": "json",
+  "strictDelegation": true
+}
+```
+
+```json
+{
+  "routingMode": "auto",
   "messages": [
     {
       "role": "user",
