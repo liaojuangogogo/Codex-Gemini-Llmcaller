@@ -333,3 +333,28 @@ deepseek-pro     -> deepseek-v4-pro, thinkingMode enabled
 ```
 
 DeepSeek 不提供 Gemini Google Search grounding。需要联网搜索时仍应使用支持联网的 Gemini grounded profile，或配置具备联网能力的其他 provider/profile。
+
+## 12. Output modes
+
+`call_model` 支持以下输出模式，用于控制返回给 Codex 的文本长度：
+
+- `full`: 直接返回完整模型文本。
+- `json`: review 场景默认模式，要求模型返回紧凑 JSON，并在结构化结果中提供 `outputJson`。
+- `summary`: 要求 review 场景返回简短自然语言摘要。
+- `preview`: 只返回有限长度预览，结构化结果中包含 `outputPreview` 截断信息。
+- `file`: 完整模型输出写入当前工作区 `.tmp/model-results/`，聊天里只返回文件路径和短预览。
+
+`file` 模式适合长报告、长代码审查和需要降低 Codex 上下文占用的场景。默认不会写用户级插件目录。
+
+示例：
+
+```json
+{
+  "profileName": "deepseek-default",
+  "prompt": "请生成一份较长的评审报告。",
+  "outputMode": "file",
+  "previewChars": 800
+}
+```
+
+可用 `provider_capabilities` 查看路由能力表，包括 Gemini、DeepSeek、Anthropic 和 OpenAI-compatible provider 是否支持 JSON、图片、联网 grounding、thinking 等能力。

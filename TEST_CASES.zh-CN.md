@@ -170,3 +170,17 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 ```powershell
 node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
 ```
+
+## 12. Output mode 与 capability 回归
+
+`server.test.mjs` 已覆盖：
+
+- `outputMode: "preview"` 只返回截断预览。
+- `outputMode: "file"` 把完整模型输出写入测试目录，并只返回路径和预览。
+- `provider_capabilities` 返回 Gemini、DeepSeek、Anthropic、OpenAI-compatible 的路由能力表。
+
+执行：
+
+```powershell
+node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
+```

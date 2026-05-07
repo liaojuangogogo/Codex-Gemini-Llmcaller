@@ -635,6 +635,7 @@ async function testVisibleMetaFooter() {
     assert(defaultFooter.content[0].text.includes("模型: google / gemini-3-flash-preview"));
     assert(defaultFooter.content[0].text.includes("Tokens: input=4, output=5, total=9"));
     assert.equal(defaultFooter.structuredContent.tokenUsage.total, 9);
+    assert.equal(defaultFooter.structuredContent.raw, undefined);
 
     const hiddenFooter = await handleToolCall({
       name: "call_model",
@@ -649,6 +650,19 @@ async function testVisibleMetaFooter() {
     assert.equal(hiddenFooter.content[0].text, "footer response");
     assert.equal(hiddenFooter.structuredContent.tokenUsage.total, 9);
     assert.equal(hiddenFooter.structuredContent.outputMetaFooter, false);
+
+    const rawShown = await handleToolCall({
+      name: "call_model",
+      arguments: {
+        provider: "google",
+        model: "gemini-3-flash-preview",
+        apiKey: TEST_SECRET,
+        prompt: "hello",
+        returnRaw: true
+      }
+    });
+    assert(rawShown.content[0].text.includes("Raw response:"));
+    assert(rawShown.structuredContent.raw);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -901,6 +915,104 @@ async function testDeepSeekPresetAndErrorClassification() {
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+}
+
+async function testProviderCapabilitiesTool() {
+  const result = await handleToolCall({
+    name: "provider_capabilities",
+    arguments: {}
+  });
+
+  assert.equal(result.structuredContent.capabilities.google.images, true);
+  assert.equal(result.structuredContent.capabilities.deepseek.thinkingMode, true);
+  assert.equal(result.structuredContent.capabilities.anthropic.googleSearchGrounding, false);
+}
+
+async function testOutputPreviewAndFileModes() {
+  resetSecretStore();
+  process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(testDir, "model-results");
+  const longText = "0123456789".repeat(40);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    text: async () => JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: longText
+          }
+        }
+      ],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 2,
+        total_tokens: 3
+      }
+    })
+  });
+
+  try {
+    const previewResult = await callModel({
+      provider: "openai-compatible",
+      model: "test-openai",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      outputMode: "preview",
+      previewChars: 120
+    });
+    assert(previewResult.text.length < longText.length);
+    assert.equal(previewResult.outputPreview.truncated, true);
+
+    const fileResult = await callModel({
+      provider: "openai-compatible",
+      model: "test-openai",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      outputMode: "file",
+      previewChars: 100
+    });
+    assert(fileResult.text.includes("Full model output saved to:"));
+    assert(!fileResult.text.includes(longText), "file mode should not return the complete model output inline");
+    assert(existsSync(fileResult.outputFile.path), "file mode should write the full output to disk");
+    assert(readFileSync(fileResult.outputFile.path, "utf8").includes(longText));
+    assert.equal(fileResult.outputPreview.truncated, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR;
+  }
+
+  process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(process.cwd(), "..", "outside-model-results");
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    text: async () => JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: longText
+          }
+        }
+      ]
+    })
+  });
+  try {
+    await assert.rejects(
+      () => callModel({
+        provider: "openai-compatible",
+        model: "test-openai",
+        apiKey: TEST_SECRET,
+        prompt: "hello",
+        outputMode: "file"
+      }),
+      /must stay inside the current workspace/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR;
   }
 }
 
@@ -1344,6 +1456,8 @@ try {
   await testProviderTokenUsageMappings();
   await testDeepSeekOfficialRequestShape();
   await testDeepSeekPresetAndErrorClassification();
+  await testProviderCapabilitiesTool();
+  await testOutputPreviewAndFileModes();
   await testInvalidConfigFallback();
   await testExistingGroundedProfileMigratesOffPreviewModel();
   await testProfileFallback();

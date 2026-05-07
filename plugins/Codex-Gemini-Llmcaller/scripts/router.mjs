@@ -1,4 +1,43 @@
-export const OUTPUT_MODES = new Set(["full", "summary", "json", "preview"]);
+export const OUTPUT_MODES = new Set(["full", "summary", "json", "preview", "file"]);
+
+export const PROVIDER_CAPABILITIES = {
+  google: {
+    chat: true,
+    jsonOutput: true,
+    images: true,
+    googleSearchGrounding: true,
+    thinkingLevel: true,
+    thinkingMode: false,
+    reasoningEffort: false
+  },
+  anthropic: {
+    chat: true,
+    jsonOutput: false,
+    images: false,
+    googleSearchGrounding: false,
+    thinkingLevel: false,
+    thinkingMode: false,
+    reasoningEffort: false
+  },
+  "openai-compatible": {
+    chat: true,
+    jsonOutput: true,
+    images: false,
+    googleSearchGrounding: false,
+    thinkingLevel: false,
+    thinkingMode: false,
+    reasoningEffort: false
+  },
+  deepseek: {
+    chat: true,
+    jsonOutput: true,
+    images: false,
+    googleSearchGrounding: false,
+    thinkingLevel: false,
+    thinkingMode: true,
+    reasoningEffort: true
+  }
+};
 
 const REVIEW_JSON_SYSTEM_INSTRUCTION = [
   "You are reviewing a previous assistant answer for correctness, completeness, and risk.",
@@ -26,6 +65,7 @@ const REVIEW_SUMMARY_SYSTEM_INSTRUCTION = [
 
 export function resolveRoute(args, explicitArgs = {}) {
   const outputMode = args.outputMode ?? defaultOutputMode(args);
+  const capabilityKey = providerCapabilityKey(args);
   const route = {
     executionMode: args.executionMode ?? "raw",
     groundingMode: args.groundingMode ?? "off",
@@ -34,6 +74,8 @@ export function resolveRoute(args, explicitArgs = {}) {
     profileName: args.profileName,
     provider: args.provider,
     model: args.model,
+    capabilityKey,
+    capabilities: PROVIDER_CAPABILITIES[capabilityKey] ?? PROVIDER_CAPABILITIES[args.provider],
     reason: routeReason(args, outputMode, explicitArgs)
   };
 
@@ -50,6 +92,10 @@ export function applyOutputModeToMessages(args, messages) {
   }
 
   if (args.outputMode === "summary" && args.executionMode === "review") {
+    return prependSystemMessage(messages, REVIEW_SUMMARY_SYSTEM_INSTRUCTION);
+  }
+
+  if ((args.outputMode === "preview" || args.outputMode === "file") && args.executionMode === "review") {
     return prependSystemMessage(messages, REVIEW_SUMMARY_SYSTEM_INSTRUCTION);
   }
 
@@ -100,4 +146,18 @@ function routeReason(args, outputMode, explicitArgs) {
   }
 
   return "default routing";
+}
+
+function providerCapabilityKey(args) {
+  if (args.provider === "openai-compatible" && isDeepSeekLike(args)) {
+    return "deepseek";
+  }
+
+  return args.provider;
+}
+
+function isDeepSeekLike(args) {
+  return String(args.baseUrl || "").toLowerCase().includes("deepseek.com") ||
+    String(args.model || "").toLowerCase().startsWith("deepseek-") ||
+    String(args.apiKeyEnv || "").toUpperCase() === "DEEPSEEK_API_KEY";
 }

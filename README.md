@@ -85,3 +85,15 @@ Built-in profiles:
 - `deepseek-pro`: `deepseek-v4-pro` with thinking enabled
 
 For review requests over prior Codex context, the plugin now defaults to compact `outputMode: "json"` so external-model review results do not unnecessarily bloat the Codex context.
+
+## Output Modes
+
+`call_model` supports compact output controls:
+
+- `full`: return the complete model text inline.
+- `json`: ask review calls to return compact structured JSON and parse it into `outputJson`.
+- `summary`: ask review calls for a short natural-language summary.
+- `preview`: return only a bounded preview and record truncation metadata.
+- `file`: save the complete model output under `.tmp/model-results/` in the current workspace and return only a short preview plus the saved path.
+
+Use `provider_capabilities` to inspect the router capability table for Gemini, DeepSeek, Anthropic, and OpenAI-compatible providers.

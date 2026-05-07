@@ -29,6 +29,7 @@ Choose the mode yourself. Do not require the user to say the mode name.
 - `executionMode: "extract"` for "extract/convert to JSON/table/list".
 - `inputSource: "context"` when the request refers to earlier conversation text; otherwise use `direct`.
 - Use `outputMode: "json"` by default for review requests that check earlier context, unless the user explicitly asks for the full external-model answer. The returned JSON should stay compact and include verdict, severity, confidence, issues, suggested_correction, and need_full_review.
+- Use `outputMode: "file"` for long reports or long reviews when the user does not need the full external-model text inline. The plugin saves the complete output under the current workspace `.tmp/model-results/` and returns a path plus short preview.
 
 Default to `groundingMode: "off"`. Use `groundingMode: "google_search"` only when the user's intent requires fresh or external information, such as today, latest, current weather, news, price, real-time, search, online, or explicit web access. This must use Gemini's Google Search grounding, not Codex search.
 
@@ -110,3 +111,5 @@ Advanced provider values:
 - Anthropic: `provider: "anthropic"`
 
 Prefer profiles for repeated usage. Use explicit arguments only for one-off overrides.
+
+Use `provider_capabilities` when you need to inspect the router capability table before choosing a provider/profile.

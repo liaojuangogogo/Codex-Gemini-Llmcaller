@@ -7,6 +7,8 @@
 - 已新增路由模块基础：review + context 默认使用紧凑 `outputMode: "json"`。
 - 已按 DeepSeek 官方 OpenAI-compatible Chat Completions 接口接入 DeepSeek，默认 base URL 为 `https://api.deepseek.com`，内置 `deepseek-default` 和 `deepseek-pro` profile。
 - 已增加 DeepSeek JSON 输出、thinkingMode 参数映射和 402/422/429/503 错误分类。
+- 已实现 `outputMode: "preview"` 和 `outputMode: "file"`，用于减少长输出回流到 Codex 上下文。
+- 已增加 `provider_capabilities` 工具和 provider capability registry，为后续自动模型选择和 capability 级 fallback 铺底。
 
 ## 1. Codex 回答核对场景的低额度模式
 

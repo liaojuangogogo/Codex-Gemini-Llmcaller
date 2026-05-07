@@ -4,9 +4,9 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync }
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { OUTPUT_MODES, applyOutputModeToMessages, parseJsonOutput, resolveRoute } from "./router.mjs";
+import { OUTPUT_MODES, PROVIDER_CAPABILITIES, applyOutputModeToMessages, parseJsonOutput, resolveRoute } from "./router.mjs";
 
 const SERVER_NAME = "Codex-Gemini-Llmcaller";
 const SERVER_VERSION = "0.3.2";
@@ -22,6 +22,7 @@ const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const EXECUTION_MODES = new Set(["raw", "review", "rewrite", "extract"]);
 const GROUNDING_MODES = new Set(["off", "google_search"]);
 const INPUT_SOURCES = new Set(["direct", "context"]);
+const DEFAULT_PREVIEW_CHARS = 1200;
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const MODULE_DIR = dirname(MODULE_PATH);
@@ -215,8 +216,14 @@ const tools = [
         },
         outputMode: {
           type: "string",
-          enum: ["full", "summary", "json", "preview"],
-          description: "Controls how much model output is returned to Codex. Review context calls default to json."
+          enum: ["full", "summary", "json", "preview", "file"],
+          description: "Controls how much model output is returned to Codex. Review context calls default to json; file saves full output locally and returns a short preview."
+        },
+        previewChars: {
+          type: "integer",
+          minimum: 100,
+          maximum: 20000,
+          description: "Maximum visible characters for preview and file output modes. Defaults to 1200."
         },
         imageInputs: {
           type: "array",
@@ -419,7 +426,8 @@ const tools = [
         executionMode: { type: "string", enum: ["raw", "review", "rewrite", "extract"] },
         groundingMode: { type: "string", enum: ["off", "google_search"] },
         inputSource: { type: "string", enum: ["direct", "context"] },
-        outputMode: { type: "string", enum: ["full", "summary", "json", "preview"] },
+        outputMode: { type: "string", enum: ["full", "summary", "json", "preview", "file"] },
+        previewChars: { type: "integer", minimum: 100, maximum: 20000 },
         strictDelegation: { type: "boolean" },
         maxImages: { type: "integer", minimum: 1, maximum: 16 },
         maxImageBytes: { type: "integer", minimum: 1024, maximum: 104857600 },
@@ -601,6 +609,15 @@ const tools = [
       properties: {},
       additionalProperties: false
     }
+  },
+  {
+    name: "provider_capabilities",
+    description: "Return provider capability metadata used by the local router.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false
+    }
   }
 ];
 
@@ -641,6 +658,10 @@ export async function handleToolCall(params) {
       return textResult(JSON.stringify({ presets: PROVIDER_PRESETS }, null, 2), {
         presets: PROVIDER_PRESETS
       });
+    case "provider_capabilities":
+      return textResult(JSON.stringify({ capabilities: PROVIDER_CAPABILITIES }, null, 2), {
+        capabilities: PROVIDER_CAPABILITIES
+      });
     case "config_get":
       return handleConfigGet();
     case "config_set_default_profile":
@@ -664,7 +685,7 @@ export async function handleToolCall(params) {
     case "call_model": {
       const result = await callModel(args);
       const responseText = formatModelResponseText(result, args.returnRaw);
-      return textResult(responseText, result);
+      return textResult(responseText, publicModelResult(result, args.returnRaw));
     }
     default:
       throw rpcError(-32602, `Unknown tool: ${name}`);
@@ -794,6 +815,39 @@ function buildDelegationInfo(args) {
 }
 
 function normalizeOutputModeResult(result, args) {
+  if (args.outputMode === "preview") {
+    const preview = previewText(result.text, args.previewChars);
+    return {
+      ...result,
+      text: preview.text,
+      outputPreview: {
+        truncated: preview.truncated,
+        originalLength: preview.originalLength,
+        visibleLength: preview.visibleLength
+      }
+    };
+  }
+
+  if (args.outputMode === "file") {
+    const fileResult = writeModelOutputFile(result, args);
+    const preview = previewText(result.text, args.previewChars);
+    return {
+      ...result,
+      text: [
+        `Full model output saved to: ${fileResult.path}`,
+        "",
+        "Preview:",
+        preview.text
+      ].join("\n"),
+      outputFile: fileResult,
+      outputPreview: {
+        truncated: preview.truncated,
+        originalLength: preview.originalLength,
+        visibleLength: preview.visibleLength
+      }
+    };
+  }
+
   if (args.outputMode !== "json") {
     return result;
   }
@@ -811,6 +865,70 @@ function normalizeOutputModeResult(result, args) {
     text: JSON.stringify(outputJson, null, 2),
     outputJson
   };
+}
+
+function previewText(text, previewChars) {
+  const value = String(text ?? "");
+  const limit = clampInteger(previewChars, 100, 20000, DEFAULT_PREVIEW_CHARS);
+  const truncated = value.length > limit;
+  const visible = truncated ? `${value.slice(0, limit)}\n\n[preview truncated; use outputMode=full or open the saved file for the complete result]` : value;
+
+  return {
+    text: visible,
+    truncated,
+    originalLength: value.length,
+    visibleLength: visible.length
+  };
+}
+
+function writeModelOutputFile(result, args) {
+  const outputDir = resolveOutputDir();
+  mkdirSync(outputDir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const profile = sanitizeFilePart(args.profileName ?? "profile");
+  const model = sanitizeFilePart(args.model ?? "model");
+  const filePath = resolve(outputDir, `${timestamp}-${profile}-${model}.md`);
+  const content = [
+    `# Model Output`,
+    "",
+    `Provider: ${args.provider ?? "unknown"}`,
+    `Model: ${args.model ?? "unknown"}`,
+    `Profile: ${args.profileName ?? "unknown"}`,
+    `Execution mode: ${args.executionMode ?? "raw"}`,
+    `Output mode: ${args.outputMode ?? "file"}`,
+    "",
+    "---",
+    "",
+    result.text ?? ""
+  ].join("\n");
+
+  writeFileSync(filePath, content, { encoding: "utf8", mode: 0o600 });
+
+  return {
+    path: filePath,
+    relativePath: relative(process.cwd(), filePath),
+    bytes: Buffer.byteLength(content, "utf8")
+  };
+}
+
+function resolveOutputDir() {
+  const requested = optionalTrimmedString(process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR);
+  const base = resolve(process.cwd());
+  const outputDir = resolve(requested || resolve(base, ".tmp", "model-results"));
+  const relativePath = relative(base, outputDir);
+
+  if (relativePath === ".." || relativePath.startsWith(`..\\`) || relativePath.startsWith("../") || isAbsolute(relativePath)) {
+    throw rpcError(-32602, "CODEX_GEMINI_LLMCALLER_OUTPUT_DIR must stay inside the current workspace.");
+  }
+
+  return outputDir;
+}
+
+function sanitizeFilePart(value) {
+  return String(value)
+    .replace(/[^A-Za-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "value";
 }
 
 function normalizeTokenUsage(provider, usage) {
@@ -959,6 +1077,15 @@ async function callOpenAiCompatible(args, messages, apiKey, timeoutMs) {
     usage: raw?.usage,
     raw
   };
+}
+
+function publicModelResult(result, returnRaw) {
+  if (returnRaw) {
+    return result;
+  }
+
+  const { raw, ...publicResult } = result;
+  return publicResult;
 }
 
 function resolveOpenAiCompatibleBaseUrl(args) {
@@ -1846,6 +1973,7 @@ function pickDefinedProfileFields(source) {
     groundingMode: optionalTrimmedString(source.groundingMode),
     inputSource: optionalTrimmedString(source.inputSource),
     outputMode: optionalTrimmedString(source.outputMode),
+    previewChars: Number.isInteger(source.previewChars) ? source.previewChars : undefined,
     strictDelegation: typeof source.strictDelegation === "boolean" ? source.strictDelegation : undefined,
     maxImages: Number.isInteger(source.maxImages) ? source.maxImages : undefined,
     maxImageBytes: Number.isInteger(source.maxImageBytes) ? source.maxImageBytes : undefined,
@@ -1882,6 +2010,7 @@ function normalizeDelegationArgs(source) {
   args.groundingMode = normalizeEnumValue(args.groundingMode, GROUNDING_MODES, "groundingMode", "off");
   args.inputSource = normalizeEnumValue(args.inputSource, INPUT_SOURCES, "inputSource", "direct");
   args.outputMode = normalizeEnumValue(args.outputMode, OUTPUT_MODES, "outputMode", undefined);
+  args.previewChars = clampInteger(args.previewChars, 100, 20000, DEFAULT_PREVIEW_CHARS);
   if (args.thinkingMode !== undefined) {
     args.thinkingMode = normalizeEnumValue(args.thinkingMode, new Set(["enabled", "disabled"]), "thinkingMode", undefined);
   }
