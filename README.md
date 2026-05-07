@@ -1,6 +1,6 @@
 # Codex-Gemini-Llmcaller
 
-`Codex-Gemini-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过本地配置文件自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
+`Codex-Gemini-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini、DeepSeek 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过初始化参数或本地配置文件接入多模型、自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
 
 ## 快速安装
 
@@ -10,7 +10,19 @@
 node ./setup.mjs
 ```
 
-初始化脚本会检查 Node.js、Windows PowerShell 和目标目录写入权限，隐藏录入 Gemini API key，将插件安装到当前用户的 Codex 插件目录，写入用户级 marketplace，并且只保存加密后的 secret。
+初始化脚本会检查 Node.js、Windows PowerShell 和目标目录写入权限，默认隐藏录入 Gemini API key，将插件安装到当前用户的 Codex 插件目录，写入用户级 marketplace，并且只保存加密后的 secret。
+
+如果要同时初始化 Gemini 和 DeepSeek：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+如果只初始化 DeepSeek 并设为默认 profile：
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
 
 环境要求：
 
@@ -92,8 +104,14 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
 node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
+也可以指定真实 profile：
+
+```powershell
+node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+```
+
 ## 文档入口
 
-- 安装指南：`./plugins/Codex-Gemini-Llmcaller/INSTALL.zh-CN.md`
-- 用户文档：`./plugins/Codex-Gemini-Llmcaller/USER_GUIDE.zh-CN.md`
-- 测试用例：`./plugins/Codex-Gemini-Llmcaller/TEST_CASES.zh-CN.md`
+- 安装指南：`./INSTALL.zh-CN.md`
+- 用户文档：`./USER_GUIDE.zh-CN.md`
+- 测试用例：`./TEST_CASES.zh-CN.md`

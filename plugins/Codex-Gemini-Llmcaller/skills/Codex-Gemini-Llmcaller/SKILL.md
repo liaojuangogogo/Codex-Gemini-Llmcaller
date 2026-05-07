@@ -39,6 +39,8 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 
 普通场景调用 `call_model`，传入已选择的模式字段以及 `prompt` 或 `messages`。不要要求用户说出 `secretName` 或 `gemini-default`。server 会解析配置中的默认 profile，初始为 `gemini-default`。
 
+如果用户明确要求 DeepSeek，优先使用 `profileName: "deepseek-default"`；高质量或 reasoning 场景可使用 `profileName: "deepseek-pro"`。如果用户要求联网搜索或图片理解，DeepSeek 不支持 Gemini Google Search grounding 和 `imageInputs`，应改用支持该能力的 Gemini profile。
+
 当前会话未直接暴露 `call_model` MCP tool 时，使用本地包装脚本，不要手动 import `callModel()`：
 
 ```powershell
@@ -98,6 +100,16 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 node ./setup.mjs
 ```
 
+初始化 DeepSeek 或多模型时，可引导用户在本地终端运行：
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
 secret 默认使用 Windows 当前用户保护并本地保存。设置完成后，调用应使用 profile 或 `secretName`；插件会在本地解密。
 
 Gemini 调用默认支持自动续写。如果 Gemini 响应以 `MAX_TOKENS` 结束或接近配置的输出上限，插件会继续请求并合并结果。只有用户明确要求单次原始调用时，才使用 `autoContinue: false`。
@@ -110,6 +122,8 @@ profile 可以定义 fallback profile。选定 profile 调用失败时，server 
 - OpenAI-compatible：`provider: "openai-compatible"`，并配置 provider 的 `baseUrl`。
 - DeepSeek：`provider: "openai-compatible"`，`baseUrl: "https://api.deepseek.com"`，模型可用 `deepseek-v4-flash` 或 `deepseek-v4-pro`。
 - Anthropic：`provider: "anthropic"`。
+
+新 profile 可带 `providerId` 表示具体服务商，例如 `gemini`、`deepseek`、`openrouter`。旧 profile 没有 `providerId` 时，插件会根据 `baseUrl`、`model`、`apiKeyEnv` 或 `secretName` 推断。
 
 重复使用时优先配置 profile；一次性覆盖时再使用显式参数。
 

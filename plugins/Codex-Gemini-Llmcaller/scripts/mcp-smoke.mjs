@@ -30,6 +30,7 @@ async function runSmoke() {
     "call_model",
     "config_get",
     "config_set_default_profile",
+    "provider_capabilities",
     "profile_set",
     "profile_delete",
     "profile_list",
@@ -42,7 +43,7 @@ async function runSmoke() {
   if (missing.length) {
     throw new Error(`Missing MCP tools: ${missing.join(", ")}`);
   }
-  if (configResult.structuredContent.defaultProfile !== "gemini-default") {
+  if (!configResult.structuredContent.profiles?.[configResult.structuredContent.defaultProfile]) {
     throw new Error(`Unexpected default profile: ${configResult.structuredContent.defaultProfile}`);
   }
   if (initialize.serverInfo?.name !== "Codex-Gemini-Llmcaller") {

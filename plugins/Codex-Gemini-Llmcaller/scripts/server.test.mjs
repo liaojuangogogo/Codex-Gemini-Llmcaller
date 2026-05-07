@@ -929,6 +929,93 @@ async function testProviderCapabilitiesTool() {
   assert.equal(result.structuredContent.capabilities.anthropic.googleSearchGrounding, false);
 }
 
+async function testProviderRegistryProfileMetadata() {
+  resetSecretStore();
+
+  const configResult = await handleToolCall({
+    name: "config_get",
+    arguments: {}
+  });
+  assert.equal(configResult.structuredContent.profiles["deepseek-default"].providerId, "deepseek");
+  assert.equal(configResult.structuredContent.profiles["deepseek-default"].baseUrl, "https://api.deepseek.com");
+
+  const profileResult = await handleToolCall({
+    name: "profile_set",
+    arguments: {
+      name: "custom-deepseek",
+      providerId: "deepseek",
+      provider: "openai-compatible",
+      model: "deepseek-v4-flash",
+      secretName: "deepseek-default",
+      baseUrl: "https://api.deepseek.com"
+    }
+  });
+  assert.equal(profileResult.structuredContent.profile.providerId, "deepseek");
+
+  await assert.rejects(
+    () => handleToolCall({
+      name: "profile_delete",
+      arguments: {
+        name: "deepseek-default"
+      }
+    }),
+    /built in/
+  );
+}
+
+async function testDeepSeekEnvPriority() {
+  resetSecretStore();
+  process.env.OPENAI_API_KEY = "wrong-openai-key";
+  process.env.DEEPSEEK_API_KEY = "deepseek-env-key";
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      headers: options.headers,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: "deepseek env ok"
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "openai-compatible",
+      model: "deepseek-v4-flash",
+      baseUrl: "https://api.deepseek.com",
+      prompt: "hello"
+    });
+
+    assert.equal(captured.headers.Authorization, "Bearer deepseek-env-key");
+    assert.equal(result.text, "deepseek env ok");
+    assert.equal(result.route.capabilityKey, "deepseek");
+    assert.equal(result.modelInfo.provider, "openai-compatible");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.DEEPSEEK_API_KEY;
+  }
+}
+
 async function testOutputPreviewAndFileModes() {
   resetSecretStore();
   process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(testDir, "model-results");
@@ -1457,6 +1544,8 @@ try {
   await testDeepSeekOfficialRequestShape();
   await testDeepSeekPresetAndErrorClassification();
   await testProviderCapabilitiesTool();
+  await testProviderRegistryProfileMetadata();
+  await testDeepSeekEnvPriority();
   await testOutputPreviewAndFileModes();
   await testInvalidConfigFallback();
   await testExistingGroundedProfileMigratesOffPreviewModel();

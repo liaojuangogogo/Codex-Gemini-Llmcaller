@@ -37,7 +37,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
 
 - 所有脚本语法检查通过。
 - MCP smoke 通过。
-- secret 加解密、Gemini 请求构造、profile、自动续写、fallback、token usage 和配置容错测试通过。
+- secret 加解密、Gemini 请求构造、多模型 profile、provider registry、自动续写、fallback、token usage 和配置容错测试通过。
 
 ## 4. 初始化安装
 
@@ -53,6 +53,30 @@ node ./setup.mjs
 - 用户级 marketplace 包含 `Codex-Gemini-Llmcaller`。
 - `.data/secrets.json` 不包含明文 API key。
 - `$HOME/.codex/plugins/cache/codex-gemini-llmcaller-local/Codex-Gemini-Llmcaller` 旧缓存被清理，重启客户端后会重新生成新版本缓存。
+
+多模型初始化：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+预期：
+
+- 依次隐藏输入 Gemini 和 DeepSeek API key。
+- 生成或复用 `gemini-default`、`deepseek-default` secret。
+- 写入 Gemini 与 DeepSeek 内置 profile。
+- 不覆盖已有可解密 secret。
+
+只初始化 DeepSeek 并设为默认 profile：
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+预期：
+
+- 隐藏输入 DeepSeek API key。
+- 默认 profile 为 `deepseek-default`。
 
 ## 5. 旧数据迁移
 
@@ -87,6 +111,21 @@ Remove-Item Env:\GEMINI_API_KEY
 - 安装完成。
 - secret 加密保存。
 
+多模型非交互安装：
+
+```powershell
+$env:GEMINI_API_KEY="你的本地key"
+$env:DEEPSEEK_API_KEY="你的本地key"
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --yes
+Remove-Item Env:\GEMINI_API_KEY
+Remove-Item Env:\DEEPSEEK_API_KEY
+```
+
+预期：
+
+- 每个 provider 从对应环境变量读取 API key。
+- `secrets.json` 不包含明文 API key。
+
 ## 7. 真实 Gemini
 
 ```powershell
@@ -96,6 +135,18 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 预期：
 
 - 使用已安装的 `gemini-default` secret 调用 Gemini。
+- 返回非空文本。
+- 结果不含明文 API key。
+
+真实 profile 自测：
+
+```powershell
+node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+```
+
+预期：
+
+- 使用已安装的 `deepseek-default` secret 调用 DeepSeek。
 - 返回非空文本。
 - 结果不含明文 API key。
 
@@ -178,6 +229,8 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
 - `outputMode: "preview"` 只返回截断预览。
 - `outputMode: "file"` 把完整模型输出写入测试目录，并只返回路径和预览。
 - `provider_capabilities` 返回 Gemini、DeepSeek、Anthropic、OpenAI-compatible 的路由能力表。
+- DeepSeek profile 带有 `providerId: "deepseek"`，删除内置 DeepSeek profile 会被拒绝。
+- 显式 DeepSeek 调用优先使用 `DEEPSEEK_API_KEY`，不会误用 `OPENAI_API_KEY`。
 
 执行：
 

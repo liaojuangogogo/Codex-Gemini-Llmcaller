@@ -1,43 +1,8 @@
-export const OUTPUT_MODES = new Set(["full", "summary", "json", "preview", "file"]);
+import { PROVIDER_CAPABILITIES, providerCapabilityKey } from "./provider-registry.mjs";
 
-export const PROVIDER_CAPABILITIES = {
-  google: {
-    chat: true,
-    jsonOutput: true,
-    images: true,
-    googleSearchGrounding: true,
-    thinkingLevel: true,
-    thinkingMode: false,
-    reasoningEffort: false
-  },
-  anthropic: {
-    chat: true,
-    jsonOutput: false,
-    images: false,
-    googleSearchGrounding: false,
-    thinkingLevel: false,
-    thinkingMode: false,
-    reasoningEffort: false
-  },
-  "openai-compatible": {
-    chat: true,
-    jsonOutput: true,
-    images: false,
-    googleSearchGrounding: false,
-    thinkingLevel: false,
-    thinkingMode: false,
-    reasoningEffort: false
-  },
-  deepseek: {
-    chat: true,
-    jsonOutput: true,
-    images: false,
-    googleSearchGrounding: false,
-    thinkingLevel: false,
-    thinkingMode: true,
-    reasoningEffort: true
-  }
-};
+export { PROVIDER_CAPABILITIES };
+
+export const OUTPUT_MODES = new Set(["full", "summary", "json", "preview", "file"]);
 
 const REVIEW_JSON_SYSTEM_INSTRUCTION = [
   "You are reviewing a previous assistant answer for correctness, completeness, and risk.",
@@ -146,18 +111,4 @@ function routeReason(args, outputMode, explicitArgs) {
   }
 
   return "default routing";
-}
-
-function providerCapabilityKey(args) {
-  if (args.provider === "openai-compatible" && isDeepSeekLike(args)) {
-    return "deepseek";
-  }
-
-  return args.provider;
-}
-
-function isDeepSeekLike(args) {
-  return String(args.baseUrl || "").toLowerCase().includes("deepseek.com") ||
-    String(args.model || "").toLowerCase().startsWith("deepseek-") ||
-    String(args.apiKeyEnv || "").toUpperCase() === "DEEPSEEK_API_KEY";
 }

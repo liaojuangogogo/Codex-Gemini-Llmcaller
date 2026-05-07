@@ -9,6 +9,8 @@
 - 已增加 DeepSeek JSON 输出、thinkingMode 参数映射和 402/422/429/503 错误分类。
 - 已实现 `outputMode: "preview"` 和 `outputMode: "file"`，用于减少长输出回流到 Codex 上下文。
 - 已增加 `provider_capabilities` 工具和 provider capability registry，为后续自动模型选择和 capability 级 fallback 铺底。
+- 已抽出 `provider-registry.mjs`，集中管理内置 profile、provider 能力、环境变量优先级和 provider 预设。
+- `setup.mjs` 已支持 `--providers gemini,deepseek`、`--default-profile`、多 provider `--api-key-env` 和 `--install-only`，DeepSeek 已进入正式初始化路径。
 
 ## 1. Codex 回答核对场景的低额度模式
 

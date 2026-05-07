@@ -36,7 +36,39 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 4. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
 5. 选择“在对话中试用”或添加到当前会话。
 
-## 2. 本地配置文件
+## 2. 多模型初始化
+
+默认初始化命令只配置 Gemini：
+
+```powershell
+node ./setup.mjs
+```
+
+如果要同时配置 Gemini 和 DeepSeek：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+如果只配置 DeepSeek，并把默认 profile 设为 `deepseek-default`：
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+非交互模式可以只传环境变量名，不要把 API key 作为命令行参数：
+
+```powershell
+$env:GEMINI_API_KEY="你的本地 Gemini key"
+$env:DEEPSEEK_API_KEY="你的本地 DeepSeek key"
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --yes
+Remove-Item Env:\GEMINI_API_KEY
+Remove-Item Env:\DEEPSEEK_API_KEY
+```
+
+初始化逻辑会按 provider 检查对应 secret 是否已存在且可解密；如果已存在，会跳过该 provider 的 API key 输入。`--install-only` 只安装插件和注册 marketplace，不初始化 secret 或 profile。
+
+## 3. 本地配置文件
 
 普通用户配置请编辑安装目录中的文件：
 
@@ -67,7 +99,7 @@ $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 }
 ```
 
-## 3. 自定义 Profile
+## 4. 自定义 Profile
 
 你可以在 `profiles` 中添加更多 profile：
 
@@ -105,6 +137,7 @@ $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 常用字段：
 
 - `provider`
+- `providerId`
 - `model`
 - `secretName`
 - `apiKeyEnv`
@@ -125,9 +158,11 @@ $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 - `fallbackProfileName`
 - `fallbackProfiles`
 
+`provider` 表示调用协议，例如 `google`、`openai-compatible`、`anthropic`。`providerId` 表示具体服务商，例如 `gemini`、`deepseek`、`openrouter`，用于路由能力判断和环境变量优先级选择。旧 profile 没有 `providerId` 时，插件会根据 `baseUrl`、`model`、`apiKeyEnv` 或 `secretName` 推断。
+
 profile 不允许保存 `Authorization`、`x-api-key`、`x-goog-api-key`、`api-key` 这类携带密钥的 header。请使用 `secretName`。
 
-## 4. 输出元信息
+## 5. 输出元信息
 
 默认情况下，模型回答末尾会追加审计信息：
 
@@ -156,13 +191,13 @@ Tokens: input=12, output=34, total=46
 
 自动续写触发多轮请求时，token 统计采用 `billable_sum`：把每轮 API 返回的 input、output、total 相加。这反映 API 消耗，不代表最终上下文窗口大小。
 
-## 5. 配置文件容错
+## 6. 配置文件容错
 
 如果 `config.json` 写坏，例如 JSON 少逗号，插件不会覆盖该文件，也不会让 MCP server 直接崩溃。它会临时降级到内置 `gemini-default` 配置，并在结构化结果中返回 `configWarning`。
 
 请手动修复 `config.json` 后继续使用自定义配置。
 
-## 6. 联网 429 处理
+## 7. 联网 429 处理
 
 联网调用会启用 Gemini 的 Google Search grounding。它和普通 Gemini 调用不是同一种消耗，可能因为搜索 grounding 配额、RPM、TPM 或 RPD 限制返回：
 
@@ -204,16 +239,17 @@ HTTP 429 RESOURCE_EXHAUSTED
 - 临时改为不联网调用。
 - 使用另一个具备可用联网配额的 API key。
 
-## 7. API key 安全模型
+## 8. API key 安全模型
 
 - 不要在会话中粘贴真实 API key。
 - 不要把 API key 放进命令行参数。
 - 推荐使用 `node ./setup.mjs` 隐藏录入。
 - 非交互场景可用 `--api-key-env GEMINI_API_KEY` 从本地环境变量读取。
+- 多模型非交互场景可用 `--api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY`。
 - 本地 `.data/secrets.json` 只保存加密内容，不保存明文 API key。
 - `secret_get` 只验证是否可解密，不返回明文 key。
 
-## 8. 不应上传 GitHub 的文件
+## 9. 不应上传 GitHub 的文件
 
 以下是本地生成或可能含敏感信息的文件/目录：
 
@@ -233,7 +269,7 @@ $HOME/.agents/plugins/marketplace.json.bak
 node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
 ```
 
-## 9. 自测
+## 10. 自测
 
 基础自测：
 
@@ -247,13 +283,19 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
 node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
+指定真实 profile 调用自测：
+
+```powershell
+node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+```
+
 更多测试用例见：
 
 ```text
-./plugins/Codex-Gemini-Llmcaller/TEST_CASES.zh-CN.md
+./TEST_CASES.zh-CN.md
 ```
 
-## 10. 兜底调用显示模型与用量
+## 11. 兜底调用显示模型与用量
 
 正常情况下，Codex 会直接调用插件暴露的 `call_model` MCP 工具，回答末尾会按 `outputMetaFooter` 显示模型、profile 和 token 用量。
 
@@ -272,7 +314,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 
 该脚本内部调用 `handleToolCall("call_model")`，会输出与 MCP 工具一致的可见文本，包括模型和 token footer。
 
-## 11. DeepSeek
+## 12. DeepSeek
 
 插件已按 DeepSeek 官方 OpenAI-compatible Chat Completions 接口接入 DeepSeek。
 
@@ -290,7 +332,11 @@ deepseek-default -> deepseek-v4-flash, thinkingMode 关闭
 deepseek-pro     -> deepseek-v4-pro, thinkingMode 启用
 ```
 
-如果要使用本地加密 secret，建议把 DeepSeek API key 保存为 `deepseek-default`。不要把真实 API key 粘贴到聊天、命令行参数、日志或仓库文件中。
+如果要使用本地加密 secret，建议通过初始化命令把 DeepSeek API key 保存为 `deepseek-default`。不要把真实 API key 粘贴到聊天、命令行参数、日志或仓库文件中。
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
 
 一次性显式调用示例：
 
@@ -334,7 +380,7 @@ deepseek-pro     -> deepseek-v4-pro, thinkingMode 启用
 
 DeepSeek 不提供 Gemini Google Search grounding。需要联网搜索时仍应使用支持联网的 Gemini grounded profile，或配置具备联网能力的其他 provider/profile。
 
-## 12. 输出模式
+## 13. 输出模式
 
 `call_model` 支持以下输出模式，用于控制返回给 Codex 的文本长度：
 

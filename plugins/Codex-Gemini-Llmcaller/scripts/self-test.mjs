@@ -32,29 +32,55 @@ function assertJson(path) {
   JSON.parse(readFileSync(path, "utf8"));
 }
 
-async function runRealGemini() {
+function parseArgs(argv) {
+  const args = {};
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith("--")) {
+      continue;
+    }
+    const key = token.slice(2);
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      args[key] = true;
+      continue;
+    }
+    args[key] = value;
+    index += 1;
+  }
+
+  return args;
+}
+
+async function runRealProfile(profileName) {
   const result = await callModel({
+    profileName,
     prompt: "Only output OK."
   });
 
   if (!result.text || !result.text.trim()) {
-    throw new Error("Real Gemini call returned empty text.");
+    throw new Error(`Real profile '${profileName}' call returned empty text.`);
   }
   const serialized = JSON.stringify(result);
-  if (/AIza[0-9A-Za-z_-]{20,}/.test(serialized)) {
-    throw new Error("Real Gemini result included a plaintext Google API key.");
+  if (/AIza[0-9A-Za-z_-]{20,}|sk-[0-9A-Za-z_-]{20,}/.test(serialized)) {
+    throw new Error("Real model result included a plaintext API key.");
   }
 
-  console.log("Real Gemini call passed.");
+  console.log(`Real profile '${profileName}' call passed.`);
   console.log(result.text.trim());
 }
 
 async function main() {
-  const realGemini = process.argv.includes("--real-gemini");
+  const args = parseArgs(process.argv.slice(2));
+  const realProfile = typeof args["real-profile"] === "string"
+    ? args["real-profile"]
+    : args["real-gemini"] ? "gemini-default" : null;
 
   for (const script of [
     "plugins/Codex-Gemini-Llmcaller/scripts/server.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs",
+    "plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/call-model-local.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs",
     "plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs",
@@ -79,11 +105,11 @@ async function main() {
   runNode(["plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs"], "Server tests");
   runNode(["plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs"], "Release check");
 
-  if (realGemini) {
+  if (realProfile) {
     if (!existsSync(DEFAULT_USER_SECRETS_PATH)) {
-      throw new Error("Real Gemini test requires an installed gemini-default secret in $HOME/plugins/Codex-Gemini-Llmcaller/.data/secrets.json.");
+      throw new Error("Real model test requires installed secrets in $HOME/plugins/Codex-Gemini-Llmcaller/.data/secrets.json.");
     }
-    await runRealGemini();
+    await runRealProfile(realProfile);
   }
 
   console.log("Self-test passed.");

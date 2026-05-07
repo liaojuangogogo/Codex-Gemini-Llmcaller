@@ -7,16 +7,25 @@ import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OUTPUT_MODES, PROVIDER_CAPABILITIES, applyOutputModeToMessages, parseJsonOutput, resolveRoute } from "./router.mjs";
+import {
+  BUILT_IN_PROFILE_NAMES,
+  BUILT_IN_PROFILES,
+  DEFAULT_PROFILE_NAME,
+  DEFAULT_TIMEOUT_MS,
+  GROUNDED_PROFILE_NAME,
+  PROVIDER_PRESETS,
+  envNamesForCall,
+  inferProviderId,
+  providerSpec
+} from "./provider-registry.mjs";
 
 const SERVER_NAME = "Codex-Gemini-Llmcaller";
 const SERVER_VERSION = "0.3.2";
-const DEFAULT_TIMEOUT_MS = 120000;
 const CONFIG_STORE_VERSION = 1;
 const SECRET_STORE_VERSION = 1;
 const SECRET_ALGORITHM = "aes-256-gcm";
 const SECRET_KDF = "scrypt";
 const LOCAL_USER_PROTECTION = "local-user-dpapi";
-const GROUNDED_PROFILE_NAME = "gemini-grounded";
 const DEFAULT_MAX_IMAGES = 4;
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const EXECUTION_MODES = new Set(["raw", "review", "rewrite", "extract"]);
@@ -29,131 +38,6 @@ const MODULE_DIR = dirname(MODULE_PATH);
 const USER_PLUGIN_ROOT = resolve(homedir(), "plugins", SERVER_NAME);
 const DEFAULT_SECRETS_PATH = resolve(USER_PLUGIN_ROOT, ".data", "secrets.json");
 const DEFAULT_CONFIG_PATH = resolve(USER_PLUGIN_ROOT, ".data", "config.json");
-const DEFAULT_PROFILE_NAME = "gemini-default";
-const DEFAULT_PROFILE = {
-  provider: "google",
-  model: "gemini-3-flash-preview",
-  secretName: "gemini-default",
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  thinkingLevel: "low",
-  autoContinue: true,
-  maxContinuationRounds: 2
-};
-
-const DEFAULT_GROUNDED_PROFILE = {
-  provider: "google",
-  model: "gemini-2.5-flash",
-  secretName: "gemini-default",
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  autoContinue: true,
-  maxContinuationRounds: 2,
-  groundingMode: "google_search",
-  fallbackProfiles: ["gemini-grounded-lite", "gemini-grounded-20-flash"]
-};
-
-const DEFAULT_GROUNDED_LITE_PROFILE = {
-  provider: "google",
-  model: "gemini-2.5-flash-lite",
-  secretName: "gemini-default",
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  autoContinue: true,
-  maxContinuationRounds: 2,
-  groundingMode: "google_search"
-};
-
-const DEFAULT_GROUNDED_20_FLASH_PROFILE = {
-  provider: "google",
-  model: "gemini-2.0-flash",
-  secretName: "gemini-default",
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  autoContinue: true,
-  maxContinuationRounds: 2,
-  groundingMode: "google_search"
-};
-
-const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-const DEFAULT_DEEPSEEK_PROFILE = {
-  provider: "openai-compatible",
-  model: "deepseek-v4-flash",
-  secretName: "deepseek-default",
-  baseUrl: DEEPSEEK_BASE_URL,
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  maxTokens: 4096,
-  thinkingMode: "disabled",
-  autoContinue: false
-};
-
-const DEFAULT_DEEPSEEK_PRO_PROFILE = {
-  provider: "openai-compatible",
-  model: "deepseek-v4-pro",
-  secretName: "deepseek-default",
-  baseUrl: DEEPSEEK_BASE_URL,
-  timeoutMs: DEFAULT_TIMEOUT_MS,
-  maxTokens: 4096,
-  thinkingMode: "enabled",
-  reasoningEffort: "high",
-  autoContinue: false
-};
-
-const PROVIDER_PRESETS = [
-  {
-    provider: "openai-compatible",
-    name: "OpenRouter",
-    baseUrl: "https://openrouter.ai/api/v1",
-    apiKeyEnv: "OPENROUTER_API_KEY",
-    notes: "Use model ids such as openai/gpt-4o-mini or anthropic/claude-3.5-sonnet."
-  },
-  {
-    provider: "openai-compatible",
-    name: "DeepSeek",
-    baseUrl: DEEPSEEK_BASE_URL,
-    apiKeyEnv: "DEEPSEEK_API_KEY",
-    models: ["deepseek-v4-flash", "deepseek-v4-pro"],
-    capabilities: {
-      chatCompletions: true,
-      jsonOutput: true,
-      thinkingMode: true,
-      images: false,
-      grounding: false
-    },
-    notes: "Official OpenAI-compatible endpoint. Use deepseek-v4-flash for general chat and deepseek-v4-pro for higher quality. Legacy deepseek-chat/deepseek-reasoner are scheduled for discontinuation by DeepSeek."
-  },
-  {
-    provider: "openai-compatible",
-    name: "Groq",
-    baseUrl: "https://api.groq.com/openai/v1",
-    apiKeyEnv: "GROQ_API_KEY",
-    notes: "Uses OpenAI-compatible chat completions."
-  },
-  {
-    provider: "openai-compatible",
-    name: "Mistral",
-    baseUrl: "https://api.mistral.ai/v1",
-    apiKeyEnv: "MISTRAL_API_KEY",
-    notes: "Uses OpenAI-compatible chat completions."
-  },
-  {
-    provider: "openai-compatible",
-    name: "xAI",
-    baseUrl: "https://api.x.ai/v1",
-    apiKeyEnv: "XAI_API_KEY",
-    notes: "Uses OpenAI-compatible chat completions."
-  },
-  {
-    provider: "anthropic",
-    name: "Anthropic",
-    baseUrl: "https://api.anthropic.com/v1",
-    apiKeyEnv: "ANTHROPIC_API_KEY",
-    notes: "Uses the Messages API."
-  },
-  {
-    provider: "google",
-    name: "Google Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKeyEnv: "GEMINI_API_KEY",
-    notes: "Native REST generateContent endpoint with x-goog-api-key."
-  }
-];
 
 const messageSchema = {
   type: "object",
@@ -185,6 +69,10 @@ const tools = [
           type: "string",
           enum: ["openai-compatible", "anthropic", "google"],
           description: "Provider API format."
+        },
+        providerId: {
+          type: "string",
+          description: "Optional provider identity for routing and environment-variable selection, for example deepseek, gemini, openrouter, or anthropic."
         },
         model: {
           type: "string",
@@ -419,6 +307,7 @@ const tools = [
       properties: {
         name: { type: "string" },
         provider: { type: "string", enum: ["openai-compatible", "anthropic", "google"] },
+        providerId: { type: "string" },
         model: { type: "string" },
         secretName: { type: "string" },
         apiKeyEnv: { type: "string" },
@@ -511,6 +400,10 @@ const tools = [
         provider: {
           type: "string",
           description: "Optional provider metadata."
+        },
+        providerId: {
+          type: "string",
+          description: "Optional provider identity metadata, for example deepseek or gemini."
         },
         baseUrl: {
           type: "string",
@@ -1094,7 +987,7 @@ function resolveOpenAiCompatibleBaseUrl(args) {
   }
 
   if (isDeepSeekCallArgs(args)) {
-    return trimTrailingSlash(process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL);
+    return trimTrailingSlash(process.env.DEEPSEEK_BASE_URL || providerSpec("deepseek").baseUrl);
   }
 
   return trimTrailingSlash(
@@ -1672,10 +1565,7 @@ function handleProfileDelete(args) {
   ensureConfigWritable(config);
   const deleted = Boolean(config.profiles[name]);
 
-  if (name === DEFAULT_PROFILE_NAME || name === GROUNDED_PROFILE_NAME) {
-    throw rpcError(-32602, `Profile '${name}' is built in and cannot be deleted.`);
-  }
-  if (["gemini-grounded-lite", "gemini-grounded-20-flash"].includes(name)) {
+  if (BUILT_IN_PROFILE_NAMES.has(name)) {
     throw rpcError(-32602, `Profile '${name}' is built in and cannot be deleted.`);
   }
   if (deleted) {
@@ -1729,7 +1619,7 @@ function resolveCallArgs(args) {
   });
 
   if (explicitArgs.provider && profile.provider && explicitArgs.provider !== profile.provider) {
-    for (const providerSpecificField of ["model", "secretName", "apiKeyEnv", "baseUrl"]) {
+    for (const providerSpecificField of ["providerId", "model", "secretName", "apiKeyEnv", "baseUrl"]) {
       if (!Object.prototype.hasOwnProperty.call(explicitArgs, providerSpecificField)) {
         delete merged[providerSpecificField];
       }
@@ -1748,7 +1638,7 @@ function resolveCallArgs(args) {
 function resolveGroundedCallArgs(config, explicitArgs) {
   const groundedProfileName = normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME);
   const groundedProfile = config.profiles[groundedProfileName] ?? (
-    groundedProfileName === GROUNDED_PROFILE_NAME ? DEFAULT_GROUNDED_PROFILE : null
+    groundedProfileName === GROUNDED_PROFILE_NAME ? BUILT_IN_PROFILES[GROUNDED_PROFILE_NAME] : null
   );
 
   if (!groundedProfile) {
@@ -1826,14 +1716,7 @@ function defaultConfigStore() {
     defaultProfile: DEFAULT_PROFILE_NAME,
     groundedProfileName: GROUNDED_PROFILE_NAME,
     outputMetaFooter: true,
-    profiles: {
-      [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE },
-      [GROUNDED_PROFILE_NAME]: { ...DEFAULT_GROUNDED_PROFILE },
-      "gemini-grounded-lite": { ...DEFAULT_GROUNDED_LITE_PROFILE },
-      "gemini-grounded-20-flash": { ...DEFAULT_GROUNDED_20_FLASH_PROFILE },
-      "deepseek-default": { ...DEFAULT_DEEPSEEK_PROFILE },
-      "deepseek-pro": { ...DEFAULT_DEEPSEEK_PRO_PROFILE }
-    }
+    profiles: cloneBuiltInProfiles()
   };
 }
 
@@ -1850,7 +1733,7 @@ function normalizeConfigStore(parsed, defaults) {
       profiles[normalizeProfileName(name)] = sanitizeProfile(profile);
     }
   }
-  normalizeBuiltInGroundedProfiles(profiles);
+  normalizeBuiltInProfiles(profiles);
 
   const defaultProfile = typeof parsed.defaultProfile === "string" && profiles[parsed.defaultProfile]
     ? parsed.defaultProfile
@@ -1868,25 +1751,35 @@ function normalizeConfigStore(parsed, defaults) {
   };
 }
 
-function normalizeBuiltInGroundedProfiles(profiles) {
-  profiles[GROUNDED_PROFILE_NAME] = normalizeBuiltInGroundedProfile(
-    profiles[GROUNDED_PROFILE_NAME],
-    DEFAULT_GROUNDED_PROFILE
+function cloneBuiltInProfiles() {
+  return Object.fromEntries(
+    Object.entries(BUILT_IN_PROFILES).map(([name, profile]) => [name, { ...profile }])
   );
-  profiles["gemini-grounded-lite"] = normalizeBuiltInGroundedProfile(
-    profiles["gemini-grounded-lite"],
-    DEFAULT_GROUNDED_LITE_PROFILE
-  );
-  profiles["gemini-grounded-20-flash"] = normalizeBuiltInGroundedProfile(
-    profiles["gemini-grounded-20-flash"],
-    DEFAULT_GROUNDED_20_FLASH_PROFILE
-  );
+}
+
+function normalizeBuiltInProfiles(profiles) {
+  for (const [name, defaults] of Object.entries(BUILT_IN_PROFILES)) {
+    profiles[name] = name.startsWith("gemini-grounded")
+      ? normalizeBuiltInGroundedProfile(profiles[name], defaults)
+      : normalizeBuiltInProfile(profiles[name], defaults);
+  }
+}
+
+function normalizeBuiltInProfile(profile, defaults) {
+  return {
+    ...defaults,
+    ...profile,
+    providerId: profile?.providerId ?? defaults.providerId,
+    provider: profile?.provider ?? defaults.provider,
+    secretName: profile?.secretName ?? defaults.secretName
+  };
 }
 
 function normalizeBuiltInGroundedProfile(profile, defaults) {
   const merged = {
     ...defaults,
     ...profile,
+    providerId: profile?.providerId ?? defaults.providerId,
     provider: "google",
     secretName: profile?.secretName ?? defaults.secretName,
     groundingMode: "google_search"
@@ -1946,6 +1839,9 @@ function sanitizeProfile(profile) {
   if (clean.provider && !["openai-compatible", "anthropic", "google"].includes(clean.provider)) {
     throw rpcError(-32602, `Unsupported provider in profile: ${clean.provider}`);
   }
+  if (clean.providerId) {
+    clean.providerId = clean.providerId.trim().toLowerCase();
+  }
   if (clean.secretName) {
     clean.secretName = normalizeSecretName(clean.secretName);
   }
@@ -1965,6 +1861,7 @@ function sanitizeProfile(profile) {
 function pickDefinedProfileFields(source) {
   return removeUndefined({
     provider: optionalTrimmedString(source.provider),
+    providerId: optionalTrimmedString(source.providerId),
     model: optionalTrimmedString(source.model),
     secretName: optionalTrimmedString(source.secretName),
     apiKeyEnv: optionalTrimmedString(source.apiKeyEnv),
@@ -2006,6 +1903,7 @@ function pickDefinedProfileFields(source) {
 function normalizeDelegationArgs(source) {
   const args = { ...source };
 
+  args.providerId = optionalTrimmedString(args.providerId) || inferProviderId(args) || undefined;
   args.executionMode = normalizeEnumValue(args.executionMode, EXECUTION_MODES, "executionMode", "raw");
   args.groundingMode = normalizeEnumValue(args.groundingMode, GROUNDING_MODES, "groundingMode", "off");
   args.inputSource = normalizeEnumValue(args.inputSource, INPUT_SOURCES, "inputSource", "direct");
@@ -2086,6 +1984,7 @@ function handleSecretSet(args) {
     version: 1,
     name,
     provider: optionalTrimmedString(args.provider),
+    providerId: optionalTrimmedString(args.providerId) || inferProviderId(args) || undefined,
     baseUrl: optionalTrimmedString(args.baseUrl),
     model: optionalTrimmedString(args.model),
     fingerprint: fingerprintSecret(apiKey),
@@ -2207,21 +2106,7 @@ function resolveApiKey(args) {
     return decryptSecretRecord(record, resolveMasterKeyForRecord(args, record), name);
   }
 
-  const envNamesByProvider = {
-    "openai-compatible": [
-      "CODEX_GEMINI_LLMCALLER_API_KEY",
-      "MULTI_MODEL_API_KEY",
-      "OPENAI_API_KEY",
-      "OPENROUTER_API_KEY",
-      "DEEPSEEK_API_KEY",
-      "GROQ_API_KEY",
-      "MISTRAL_API_KEY",
-      "XAI_API_KEY"
-    ],
-    anthropic: ["ANTHROPIC_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
-    google: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"]
-  };
-  const envNames = envNamesByProvider[args.provider] ?? ["CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"];
+  const envNames = envNamesForCall(args);
   const envName = envNames.find((name) => process.env[name]);
 
   if (!envName) {
@@ -2433,6 +2318,7 @@ function publicSecretRecord(record) {
   return {
     name: record.name,
     provider: record.provider,
+    providerId: record.providerId,
     baseUrl: record.baseUrl,
     model: record.model,
     fingerprint: record.fingerprint,

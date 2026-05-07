@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "Codex-Gemini-Llmcaller",
     "shortDescription": "Call models through local profiles",
-    "longDescription": "Use a local MCP server to call OpenAI-compatible providers, Anthropic, and the native Gemini REST API with encrypted local secrets, configurable profiles, strict delegation metadata, Gemini Google Search grounding, image inputs, fallback profiles, default Gemini usage, and automatic continuation for truncated responses.",
+    "longDescription": "Use a local MCP server to call Gemini, DeepSeek, OpenAI-compatible providers, and Anthropic with encrypted local secrets, configurable profiles, strict delegation metadata, Gemini Google Search grounding, image inputs, fallback profiles, provider-aware routing metadata, and automatic continuation for truncated responses.",
     "developerName": "Local Developer",
     "category": "Productivity",
     "capabilities": [
@@ -34,6 +34,7 @@
     "termsOfServiceURL": "https://example.com/terms",
     "defaultPrompt": [
       "Use Gemini to review this answer.",
+      "Use DeepSeek to review this answer.",
       "Configure my default model profile.",
       "Compare this with another model."
     ],

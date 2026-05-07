@@ -18,7 +18,7 @@
 node ./setup.mjs
 ```
 
-脚本会隐藏录入 Gemini API key，并完成以下工作：
+脚本默认初始化 Gemini，会隐藏录入 Gemini API key，并完成以下工作：
 
 - 复制 `./plugins/Codex-Gemini-Llmcaller` 到当前用户插件目录。
 - 保留目标目录已有 `.data/`，避免覆盖已有加密 secret。
@@ -29,6 +29,24 @@ node ./setup.mjs
 
 完成后重启 Codex Desktop。
 
+如果要同时初始化 Gemini 和 DeepSeek：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+如果只初始化 DeepSeek 并设为默认 profile：
+
+```powershell
+node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+如果只安装或更新插件文件，不录入 API key，也不写入 profile：
+
+```powershell
+node ./setup.mjs --install-only --yes
+```
+
 ## 3. 非交互安装
 
 如果希望从本地环境变量读取 API key：
@@ -37,6 +55,16 @@ node ./setup.mjs
 $env:GEMINI_API_KEY="你的本地key"
 node ./setup.mjs --api-key-env GEMINI_API_KEY --yes
 Remove-Item Env:\GEMINI_API_KEY
+```
+
+多模型非交互初始化可以按 provider 指定环境变量名：
+
+```powershell
+$env:GEMINI_API_KEY="你的本地 Gemini key"
+$env:DEEPSEEK_API_KEY="你的本地 DeepSeek key"
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --yes
+Remove-Item Env:\GEMINI_API_KEY
+Remove-Item Env:\DEEPSEEK_API_KEY
 ```
 
 不要把 API key 作为命令行参数传入，也不要粘贴到会话中。
@@ -69,6 +97,8 @@ Remove-Item Env:\GEMINI_API_KEY
 
 默认会使用 `gemini-default` profile，不需要每次说明 `secretName`。
 
+如果初始化时设置了 `--default-profile deepseek-default`，默认会使用 `deepseek-default`。也可以在调用时明确说使用 DeepSeek，或通过 `profileName` 指定。
+
 普通请求默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding；Codex 不会先查资料再喂给 Gemini。内置联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。
 
 ## 6. 故障排查
@@ -97,4 +127,8 @@ node ./setup.mjs
 node ./setup.mjs --yes
 ```
 
-该命令会复用已有 `gemini-default` secret，并清理旧插件缓存。
+该命令会复用已有可解密 secret，并清理旧插件缓存。多模型场景下也可以使用：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --yes
+```

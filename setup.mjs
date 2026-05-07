@@ -14,12 +14,18 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  DEFAULT_PROFILE_NAME,
+  DEFAULT_PROVIDER_ID,
+  PROVIDER_SPECS,
+  apiKeyEnvMap,
+  setupProviderSpecs
+} from "./plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs";
 
 const PLUGIN_NAME = "Codex-Gemini-Llmcaller";
 const LEGACY_PLUGIN_NAME = "multi-model-api";
 const MARKETPLACE_NAME = "codex-gemini-llmcaller-local";
 const MARKETPLACE_DISPLAY_NAME = "Codex-Gemini-Llmcaller Local Plugins";
-const DEFAULT_MODEL = "gemini-3-flash-preview";
 const MIN_NODE_MAJOR = 18;
 const REPO_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE_PLUGIN_DIR = path.join(REPO_ROOT, "plugins", PLUGIN_NAME);
@@ -65,9 +71,14 @@ function printHelp() {
   node ./setup.mjs [options]
 
 Options:
-  --api-key-env GEMINI_API_KEY       Read the Gemini API key from a local environment variable.
-  --model gemini-3-flash-preview     Gemini model for the default profile.
-  --profile gemini-default           Secret/profile name to create and set as default.
+  --providers gemini,deepseek        Providers to initialize. Defaults to gemini.
+  --api-key-env GEMINI_API_KEY       Read the default provider API key from a local environment variable.
+  --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY
+                                    Read multiple provider API keys from local environment variables.
+  --default-profile deepseek-default Set the default profile after initialization.
+  --install-only                     Install/register the plugin without initializing secrets or profiles.
+  --model gemini-3-flash-preview     Legacy Gemini model override for the default profile.
+  --profile gemini-default           Legacy Gemini secret/profile name override.
   --plugin-target-dir <path>         Override the user-level plugin install directory.
   --marketplace-path <path>          Override the user-level marketplace path.
   --check-only                       Check Node, Windows, PowerShell, and writable paths only.
@@ -113,15 +124,40 @@ function defaultPluginCacheDir() {
 }
 
 function resolveInstallOptions(args) {
+  const legacyProfile = typeof args.profile === "string" && args.profile.trim() ? args.profile.trim() : DEFAULT_PROFILE_NAME;
+  const providers = parseProviderList(args.providers);
+  const envMap = apiKeyEnvMap(typeof args.apiKeyEnv === "string" ? args.apiKeyEnv : "");
+  const providersExplicit = typeof args.providers === "string" && args.providers.trim();
+
   return {
-    profile: typeof args.profile === "string" && args.profile.trim() ? args.profile.trim() : "gemini-default",
-    model: typeof args.model === "string" && args.model.trim() ? args.model.trim() : DEFAULT_MODEL,
-    apiKeyEnv: typeof args.apiKeyEnv === "string" && args.apiKeyEnv.trim() ? args.apiKeyEnv.trim() : null,
+    providers,
+    providersExplicit: Boolean(providersExplicit),
+    providerSpecs: setupProviderSpecs(providers),
+    legacyProfile,
+    legacyModel: typeof args.model === "string" && args.model.trim() ? args.model.trim() : PROVIDER_SPECS.gemini.profiles[DEFAULT_PROFILE_NAME].model,
+    apiKeyEnvMap: envMap,
+    defaultApiKeyEnv: typeof args.apiKeyEnv === "string" && args.apiKeyEnv.trim() && !args.apiKeyEnv.includes("=") ? args.apiKeyEnv.trim() : null,
+    defaultProfile: typeof args.defaultProfile === "string" && args.defaultProfile.trim()
+      ? args.defaultProfile.trim()
+      : providersExplicit && !providers.includes(DEFAULT_PROVIDER_ID) ? `${providers[0]}-default` : null,
     pluginTargetDir: path.resolve(expandTilde(args.pluginTargetDir) || defaultPluginTargetDir()),
     marketplacePath: path.resolve(expandTilde(args.marketplacePath) || defaultMarketplacePath()),
+    installOnly: args.installOnly === true,
     checkOnly: args.checkOnly === true,
     yes: args.yes === true
   };
+}
+
+function parseProviderList(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return [DEFAULT_PROVIDER_ID];
+  }
+
+  const providers = value.split(",")
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(Boolean);
+
+  return providers.length ? [...new Set(providers)] : [DEFAULT_PROVIDER_ID];
 }
 
 function checkNodeVersion() {
@@ -284,16 +320,16 @@ async function confirmInstall(options) {
   }
 }
 
-async function readApiKey(options) {
-  if (options.apiKeyEnv) {
-    const value = process.env[options.apiKeyEnv];
+async function readApiKey(providerPlan) {
+  if (providerPlan.apiKeyEnv) {
+    const value = process.env[providerPlan.apiKeyEnv];
     if (!value || !value.trim()) {
-      throw new Error(`Environment variable ${options.apiKeyEnv} is not set.`);
+      throw new Error(`Environment variable ${providerPlan.apiKeyEnv} is not set.`);
     }
     return value.trim();
   }
 
-  const value = await promptHidden("Gemini API key: ");
+  const value = await promptHidden(providerPlan.spec.setupPrompt ?? `${providerPlan.spec.displayName} API key: `);
   if (!value.trim()) {
     throw new Error("API key cannot be empty.");
   }
@@ -389,12 +425,12 @@ async function loadInstalledServer(options) {
   return import(`${pathToFileURL(targetServerPath).href}?setup=${Date.now()}`);
 }
 
-async function hasDecryptableSecret(server, profileName) {
+async function hasDecryptableSecret(server, secretName) {
   try {
     const result = await server.handleToolCall({
       name: "secret_get",
       arguments: {
-        name: profileName
+        name: secretName
       }
     });
     return result.structuredContent?.canDecrypt === true;
@@ -403,34 +439,69 @@ async function hasDecryptableSecret(server, profileName) {
   }
 }
 
-async function writeSecret(server, options, apiKey) {
+async function writeSecret(server, providerPlan, apiKey) {
   await server.handleToolCall({
     name: "secret_set",
     arguments: {
-      name: options.profile,
+      name: providerPlan.secretName,
       apiKey,
       protection: "local-user",
-      provider: "google",
-      model: options.model,
+      providerId: providerPlan.spec.id,
+      provider: providerPlan.spec.provider,
+      baseUrl: providerPlan.spec.baseUrl,
+      model: providerPlan.primaryModel,
       overwrite: true
     }
   });
 }
 
-async function writeProfile(server, options) {
-  await server.handleToolCall({
-    name: "profile_set",
-    arguments: {
-      name: options.profile,
-      provider: "google",
-      model: options.model,
-      secretName: options.profile,
-      timeoutMs: 120000,
-      thinkingLevel: "low",
-      autoContinue: true,
-      maxContinuationRounds: 2,
-      setDefault: true
+async function writeProfiles(server, providerPlan, options) {
+  for (const [profileName, profile] of Object.entries(providerPlan.profiles)) {
+    await server.handleToolCall({
+      name: "profile_set",
+      arguments: {
+        name: profileName,
+        ...profile,
+        setDefault: options.defaultProfile === profileName
+      }
+    });
+  }
+}
+
+function buildProviderPlans(options) {
+  return options.providerSpecs.map((spec) => {
+    const legacyGeminiOverride = spec.id === "gemini" && (options.legacyProfile !== DEFAULT_PROFILE_NAME || options.legacyModel !== PROVIDER_SPECS.gemini.profiles[DEFAULT_PROFILE_NAME].model);
+    const secretName = legacyGeminiOverride ? options.legacyProfile : spec.defaultSecretName;
+    const profiles = legacyGeminiOverride
+      ? {}
+      : Object.fromEntries(
+          Object.entries(spec.profiles ?? {}).map(([name, profile]) => [name, { ...profile }])
+        );
+
+    if (legacyGeminiOverride) {
+      profiles[options.legacyProfile] = {
+        ...PROVIDER_SPECS.gemini.profiles[DEFAULT_PROFILE_NAME],
+        model: options.legacyModel,
+        secretName: options.legacyProfile
+      };
     }
+
+    if (!options.defaultProfile && spec.id === "gemini" && legacyGeminiOverride) {
+      options.defaultProfile = options.legacyProfile;
+    }
+
+    const primaryProfile = profiles[secretName] ?? Object.values(profiles)[0] ?? {};
+    const apiKeyEnv = options.apiKeyEnvMap[spec.id] ?? (
+      options.defaultApiKeyEnv && (spec.id === DEFAULT_PROVIDER_ID || options.providerSpecs.length === 1) ? options.defaultApiKeyEnv : null
+    );
+
+    return {
+      spec,
+      secretName,
+      profiles,
+      primaryModel: primaryProfile.model,
+      apiKeyEnv
+    };
   });
 }
 
@@ -563,20 +634,39 @@ async function main() {
   writeInstalledMcpConfig(options);
   const migratedLegacyData = migrateLegacyDataIfNeeded(options);
   const server = await loadInstalledServer(options);
-  const canReuseSecret = !options.apiKeyEnv && await hasDecryptableSecret(server, options.profile);
+  const providerPlans = buildProviderPlans(options);
 
   if (migratedLegacyData) {
     console.log(`Migrated existing encrypted data from ${path.join(os.homedir(), "plugins", LEGACY_PLUGIN_NAME, ".data")}.`);
   }
 
-  if (canReuseSecret) {
-    console.log(`Existing decryptable secret '${options.profile}' found; skipping API key input.`);
+  if (!options.installOnly) {
+    for (const providerPlan of providerPlans) {
+      const canReuseSecret = !providerPlan.apiKeyEnv && await hasDecryptableSecret(server, providerPlan.secretName);
+
+      if (canReuseSecret) {
+        console.log(`Existing decryptable secret '${providerPlan.secretName}' found; skipping ${providerPlan.spec.displayName} API key input.`);
+      } else {
+        const apiKey = await readApiKey(providerPlan);
+        await writeSecret(server, providerPlan, apiKey);
+      }
+
+      await writeProfiles(server, providerPlan, options);
+      console.log(`Initialized ${providerPlan.spec.displayName} profiles: ${Object.keys(providerPlan.profiles).join(", ")}`);
+    }
+
+    if (options.defaultProfile && !providerPlans.some((plan) => Object.prototype.hasOwnProperty.call(plan.profiles, options.defaultProfile))) {
+      await server.handleToolCall({
+        name: "config_set_default_profile",
+        arguments: {
+          profileName: options.defaultProfile
+        }
+      });
+    }
   } else {
-    const apiKey = await readApiKey(options);
-    await writeSecret(server, options, apiKey);
+    console.log("Install-only mode: skipped secret and profile initialization.");
   }
 
-  await writeProfile(server, options);
   writeMarketplace(options);
   const cacheCleared = clearPluginCache();
 
@@ -585,7 +675,8 @@ async function main() {
   }
 
   console.log("初始化完成。");
-  console.log("重启 Codex Desktop 后，可以直接说：用 Gemini 检查一下这个回答。");
+  const example = providerPlans[0]?.spec.setupExample ?? "用外部模型检查一下这个回答。";
+  console.log(`重启 Codex Desktop 后，可以直接说：${example}`);
   console.log("也可以在插件页把 Codex-Gemini-Llmcaller 添加到会话后使用。");
 }
 
