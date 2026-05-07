@@ -155,11 +155,11 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 - 内置联网 fallback 顺序为 `gemini-2.5-flash`、`gemini-2.5-flash-lite`、`gemini-2.0-flash`。
 - 如果全部 fallback 都失败，返回可读错误，不由 Codex 冒充 Gemini 回答。
 
-## 11. DeepSeek mock 回归
+## 11. DeepSeek 模拟回归
 
 `server.test.mjs` 已覆盖 DeepSeek 官方 OpenAI-compatible 请求形状，不需要真实 DeepSeek API key：
 
-- 默认 DeepSeek base URL：`https://api.deepseek.com`
+- 默认 DeepSeek 基础地址：`https://api.deepseek.com`
 - 推荐模型：`deepseek-v4-flash`
 - `outputMode: "json"` 时发送 `response_format: { "type": "json_object" }`
 - `thinkingMode: "enabled"` 时发送 `thinking: { "type": "enabled" }`
@@ -171,7 +171,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
 ```
 
-## 12. Output mode 与 capability 回归
+## 12. 输出模式与能力表回归
 
 `server.test.mjs` 已覆盖：
 

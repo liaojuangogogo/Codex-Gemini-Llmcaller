@@ -834,9 +834,9 @@ function normalizeOutputModeResult(result, args) {
     return {
       ...result,
       text: [
-        `Full model output saved to: ${fileResult.path}`,
+        `完整模型输出已保存到: ${fileResult.path}`,
         "",
-        "Preview:",
+        "预览:",
         preview.text
       ].join("\n"),
       outputFile: fileResult,
@@ -871,7 +871,7 @@ function previewText(text, previewChars) {
   const value = String(text ?? "");
   const limit = clampInteger(previewChars, 100, 20000, DEFAULT_PREVIEW_CHARS);
   const truncated = value.length > limit;
-  const visible = truncated ? `${value.slice(0, limit)}\n\n[preview truncated; use outputMode=full or open the saved file for the complete result]` : value;
+  const visible = truncated ? `${value.slice(0, limit)}\n\n[预览已截断；使用 outputMode=full 或打开保存文件查看完整结果]` : value;
 
   return {
     text: visible,
@@ -889,13 +889,13 @@ function writeModelOutputFile(result, args) {
   const model = sanitizeFilePart(args.model ?? "model");
   const filePath = resolve(outputDir, `${timestamp}-${profile}-${model}.md`);
   const content = [
-    `# Model Output`,
+    `# 模型输出`,
     "",
     `Provider: ${args.provider ?? "unknown"}`,
-    `Model: ${args.model ?? "unknown"}`,
+    `模型: ${args.model ?? "unknown"}`,
     `Profile: ${args.profileName ?? "unknown"}`,
-    `Execution mode: ${args.executionMode ?? "raw"}`,
-    `Output mode: ${args.outputMode ?? "file"}`,
+    `执行模式: ${args.executionMode ?? "raw"}`,
+    `输出模式: ${args.outputMode ?? "file"}`,
     "",
     "---",
     "",

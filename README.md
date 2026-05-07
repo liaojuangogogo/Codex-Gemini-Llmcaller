@@ -48,6 +48,38 @@ node ./setup.mjs
 
 联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。如果联网调用返回 `HTTP 429 RESOURCE_EXHAUSTED`，通常是 Search grounding 配额或速率限制，插件会返回明确错误并尝试配置的 fallback。
 
+## DeepSeek
+
+插件已按 DeepSeek 官方 OpenAI-compatible Chat Completions 接口接入：
+
+```json
+{
+  "provider": "openai-compatible",
+  "model": "deepseek-v4-flash",
+  "baseUrl": "https://api.deepseek.com",
+  "apiKeyEnv": "DEEPSEEK_API_KEY"
+}
+```
+
+内置 profile：
+
+- `deepseek-default`：`deepseek-v4-flash`，关闭 thinking
+- `deepseek-pro`：`deepseek-v4-pro`，启用 thinking
+
+核对 Codex 之前回答时，插件默认使用紧凑的 `outputMode: "json"`，避免外部模型的长评语回流到 Codex 上下文。
+
+## 输出模式
+
+`call_model` 支持以下输出控制：
+
+- `full`：在聊天中返回完整模型文本。
+- `json`：要求 review 调用返回紧凑结构化 JSON，并解析到 `outputJson`。
+- `summary`：要求 review 调用返回简短自然语言摘要。
+- `preview`：只返回有限长度预览，并记录截断元数据。
+- `file`：把完整模型输出保存到当前工作区 `.tmp/model-results/`，聊天中只返回短预览和保存路径。
+
+可使用 `provider_capabilities` 查看 Gemini、DeepSeek、Anthropic 和 OpenAI-compatible provider 的路由能力表。
+
 ## 自测
 
 ```powershell
@@ -65,35 +97,3 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 - 安装指南：`./plugins/Codex-Gemini-Llmcaller/INSTALL.zh-CN.md`
 - 用户文档：`./plugins/Codex-Gemini-Llmcaller/USER_GUIDE.zh-CN.md`
 - 测试用例：`./plugins/Codex-Gemini-Llmcaller/TEST_CASES.zh-CN.md`
-
-## DeepSeek
-
-DeepSeek is supported through its official OpenAI-compatible Chat Completions API:
-
-```json
-{
-  "provider": "openai-compatible",
-  "model": "deepseek-v4-flash",
-  "baseUrl": "https://api.deepseek.com",
-  "apiKeyEnv": "DEEPSEEK_API_KEY"
-}
-```
-
-Built-in profiles:
-
-- `deepseek-default`: `deepseek-v4-flash` with thinking disabled
-- `deepseek-pro`: `deepseek-v4-pro` with thinking enabled
-
-For review requests over prior Codex context, the plugin now defaults to compact `outputMode: "json"` so external-model review results do not unnecessarily bloat the Codex context.
-
-## Output Modes
-
-`call_model` supports compact output controls:
-
-- `full`: return the complete model text inline.
-- `json`: ask review calls to return compact structured JSON and parse it into `outputJson`.
-- `summary`: ask review calls for a short natural-language summary.
-- `preview`: return only a bounded preview and record truncation metadata.
-- `file`: save the complete model output under `.tmp/model-results/` in the current workspace and return only a short preview plus the saved path.
-
-Use `provider_capabilities` to inspect the router capability table for Gemini, DeepSeek, Anthropic, and OpenAI-compatible providers.

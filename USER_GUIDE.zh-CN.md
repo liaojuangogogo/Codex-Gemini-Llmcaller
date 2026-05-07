@@ -286,8 +286,8 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 内置 profile：
 
 ```text
-deepseek-default -> deepseek-v4-flash, thinkingMode disabled
-deepseek-pro     -> deepseek-v4-pro, thinkingMode enabled
+deepseek-default -> deepseek-v4-flash, thinkingMode 关闭
+deepseek-pro     -> deepseek-v4-pro, thinkingMode 启用
 ```
 
 如果要使用本地加密 secret，建议把 DeepSeek API key 保存为 `deepseek-default`。不要把真实 API key 粘贴到聊天、命令行参数、日志或仓库文件中。
@@ -334,7 +334,7 @@ deepseek-pro     -> deepseek-v4-pro, thinkingMode enabled
 
 DeepSeek 不提供 Gemini Google Search grounding。需要联网搜索时仍应使用支持联网的 Gemini grounded profile，或配置具备联网能力的其他 provider/profile。
 
-## 12. Output modes
+## 12. 输出模式
 
 `call_model` 支持以下输出模式，用于控制返回给 Codex 的文本长度：
 

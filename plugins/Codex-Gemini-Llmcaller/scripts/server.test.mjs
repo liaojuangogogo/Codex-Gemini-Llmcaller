@@ -974,7 +974,7 @@ async function testOutputPreviewAndFileModes() {
       outputMode: "file",
       previewChars: 100
     });
-    assert(fileResult.text.includes("Full model output saved to:"));
+    assert(fileResult.text.includes("完整模型输出已保存到:"));
     assert(!fileResult.text.includes(longText), "file mode should not return the complete model output inline");
     assert(existsSync(fileResult.outputFile.path), "file mode should write the full output to disk");
     assert(readFileSync(fileResult.outputFile.path, "utf8").includes(longText));
