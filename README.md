@@ -92,6 +92,8 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 
 可使用 `provider_capabilities` 查看 Gemini、DeepSeek、Anthropic 和 OpenAI-compatible provider 的路由能力表。
 
+默认调用保持 profile 兼容行为。需要插件自主选择模型或是否联网时，可显式传 `routingMode: "auto"`。
+
 ## 自测
 
 ```powershell

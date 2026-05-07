@@ -231,6 +231,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
 - `provider_capabilities` 返回 Gemini、DeepSeek、Anthropic、OpenAI-compatible 的路由能力表。
 - DeepSeek profile 带有 `providerId: "deepseek"`，删除内置 DeepSeek profile 会被拒绝。
 - 显式 DeepSeek 调用优先使用 `DEEPSEEK_API_KEY`，不会误用 `OPENAI_API_KEY`。
+- `routingMode: "auto"` 在核对上文时可选择 `deepseek-default`，在新鲜信息请求中可自动启用 Gemini grounded profile。
 
 执行：
 

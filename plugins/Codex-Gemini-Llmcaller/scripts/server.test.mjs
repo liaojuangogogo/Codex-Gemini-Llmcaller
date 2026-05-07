@@ -333,6 +333,7 @@ async function testDelegationDefaultsDoNotGround() {
       executionMode: "raw",
       groundingMode: "off",
       inputSource: "direct",
+      routingMode: "profile",
       outputMode: "full",
       imageCount: 0,
       strictDelegation: true,
@@ -1016,6 +1017,119 @@ async function testDeepSeekEnvPriority() {
   }
 }
 
+async function testAutoRoutingSelectsDeepSeekForContextReview() {
+  resetSecretStore();
+  process.env.DEEPSEEK_API_KEY = "deepseek-env-key";
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: "correct",
+                severity: "none",
+                confidence: 0.9,
+                issues: [],
+                missing_context: "",
+                suggested_correction: "",
+                need_full_review: false
+              })
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 2,
+          completion_tokens: 3,
+          total_tokens: 5
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      routingMode: "auto",
+      executionMode: "review",
+      inputSource: "context",
+      messages: [
+        {
+          role: "user",
+          content: "请检查上面的回答。"
+        }
+      ]
+    });
+
+    assert.equal(captured.url, "https://api.deepseek.com/chat/completions");
+    assert.equal(result.profileName, "deepseek-default");
+    assert.equal(result.delegation.routingMode, "auto");
+    assert.equal(result.route.capabilityKey, "deepseek");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.DEEPSEEK_API_KEY;
+  }
+}
+
+async function testAutoRoutingEnablesGroundingForFreshRequests() {
+  resetSecretStore();
+  process.env.GEMINI_API_KEY = TEST_SECRET;
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "grounded auto ok" }]
+            },
+            finishReason: "STOP"
+          }
+        ],
+        usageMetadata: {
+          promptTokenCount: 1,
+          candidatesTokenCount: 1,
+          totalTokenCount: 2
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      routingMode: "auto",
+      prompt: "请查询今天深圳天气，只输出摘要。"
+    });
+
+    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
+    assert.equal(result.profileName, "gemini-grounded");
+    assert.equal(result.delegation.groundingMode, "google_search");
+    assert.equal(result.delegation.routingMode, "auto");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.GEMINI_API_KEY;
+  }
+}
+
 async function testOutputPreviewAndFileModes() {
   resetSecretStore();
   process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(testDir, "model-results");
@@ -1546,6 +1660,8 @@ try {
   await testProviderCapabilitiesTool();
   await testProviderRegistryProfileMetadata();
   await testDeepSeekEnvPriority();
+  await testAutoRoutingSelectsDeepSeekForContextReview();
+  await testAutoRoutingEnablesGroundingForFreshRequests();
   await testOutputPreviewAndFileModes();
   await testInvalidConfigFallback();
   await testExistingGroundedProfileMigratesOffPreviewModel();

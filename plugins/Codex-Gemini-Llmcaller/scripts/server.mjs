@@ -31,6 +31,7 @@ const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const EXECUTION_MODES = new Set(["raw", "review", "rewrite", "extract"]);
 const GROUNDING_MODES = new Set(["off", "google_search"]);
 const INPUT_SOURCES = new Set(["direct", "context"]);
+const ROUTING_MODES = new Set(["profile", "auto"]);
 const DEFAULT_PREVIEW_CHARS = 1200;
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
@@ -101,6 +102,11 @@ const tools = [
           type: "string",
           enum: ["direct", "context"],
           description: "Whether the prompt is direct user input or conversation context passed through unchanged."
+        },
+        routingMode: {
+          type: "string",
+          enum: ["profile", "auto"],
+          description: "Use profile for backward-compatible profile selection. Use auto to let the plugin choose a profile and grounding mode from the request."
         },
         outputMode: {
           type: "string",
@@ -315,6 +321,7 @@ const tools = [
         executionMode: { type: "string", enum: ["raw", "review", "rewrite", "extract"] },
         groundingMode: { type: "string", enum: ["off", "google_search"] },
         inputSource: { type: "string", enum: ["direct", "context"] },
+        routingMode: { type: "string", enum: ["profile", "auto"] },
         outputMode: { type: "string", enum: ["full", "summary", "json", "preview", "file"] },
         previewChars: { type: "integer", minimum: 100, maximum: 20000 },
         strictDelegation: { type: "boolean" },
@@ -700,6 +707,7 @@ function buildDelegationInfo(args) {
     executionMode: args.executionMode ?? "raw",
     groundingMode: args.groundingMode ?? "off",
     inputSource: args.inputSource ?? "direct",
+    routingMode: args.routingMode ?? "profile",
     outputMode: args.outputMode ?? "full",
     imageCount: Array.isArray(args.imageInputs) ? args.imageInputs.length : 0,
     strictDelegation: args.strictDelegation !== false,
@@ -1601,9 +1609,10 @@ function handleProfileList() {
 function resolveCallArgs(args) {
   const config = readConfigStore();
   const explicitArgs = removeUndefined(args);
+  const routingMode = explicitArgs.routingMode === "auto" ? "auto" : "profile";
   const requestedProfile = typeof args.profileName === "string" && args.profileName.trim()
     ? normalizeProfileName(args.profileName)
-    : config.defaultProfile;
+    : routingMode === "auto" ? selectAutoProfileName(config, explicitArgs) : config.defaultProfile;
   const profile = config.profiles[requestedProfile];
 
   if (!profile) {
@@ -1614,6 +1623,7 @@ function resolveCallArgs(args) {
     outputMetaFooter: config.outputMetaFooter,
     ...profile,
     ...explicitArgs,
+    ...autoRoutingOverrides(config, requestedProfile, explicitArgs),
     profileName: requestedProfile,
     configWarning: config.configWarning
   });
@@ -1664,6 +1674,80 @@ function shouldAutoSwitchToGroundedProfile(args, explicitArgs) {
     !explicitArgs.provider &&
     !explicitArgs.model &&
     !explicitArgs.baseUrl;
+}
+
+function selectAutoProfileName(config, explicitArgs) {
+  if (hasProviderOverride(explicitArgs)) {
+    return config.defaultProfile;
+  }
+  if (explicitArgs.groundingMode === "google_search" || shouldAutoGround(explicitArgs)) {
+    return normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME);
+  }
+  if (hasImageInputs(explicitArgs)) {
+    return config.profiles[DEFAULT_PROFILE_NAME] ? DEFAULT_PROFILE_NAME : config.defaultProfile;
+  }
+  if (explicitArgs.executionMode === "review" && explicitArgs.inputSource === "context" && isProfileCallable(config.profiles["deepseek-default"])) {
+    return "deepseek-default";
+  }
+
+  return config.defaultProfile;
+}
+
+function autoRoutingOverrides(config, requestedProfile, explicitArgs) {
+  if (explicitArgs.routingMode !== "auto") {
+    return {};
+  }
+
+  const overrides = {
+    routingMode: "auto"
+  };
+
+  if (!Object.prototype.hasOwnProperty.call(explicitArgs, "groundingMode") && (requestedProfile === normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME) || shouldAutoGround(explicitArgs))) {
+    overrides.groundingMode = "google_search";
+  }
+
+  return overrides;
+}
+
+function hasProviderOverride(args) {
+  return Boolean(args.provider || args.providerId || args.model || args.baseUrl);
+}
+
+function shouldAutoGround(args) {
+  const text = modelRequestText(args).toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return /今天|今日|现在|当前|最新|新闻|天气|价格|股价|汇率|搜索|联网|实时|today|current|latest|news|weather|price|search|online|real[-\s]?time/.test(text);
+}
+
+function modelRequestText(args) {
+  if (typeof args.prompt === "string") {
+    return args.prompt;
+  }
+  if (Array.isArray(args.messages)) {
+    return args.messages.map((message) => typeof message?.content === "string" ? message.content : "").join("\n");
+  }
+  return "";
+}
+
+function isProfileCallable(profile) {
+  if (!profile) {
+    return false;
+  }
+  if (typeof profile.apiKeyEnv === "string" && process.env[profile.apiKeyEnv]) {
+    return true;
+  }
+  if (envNamesForCall(profile).some((name) => process.env[name])) {
+    return true;
+  }
+  if (typeof profile.secretName === "string" && profile.secretName.trim()) {
+    const store = readSecretsStore();
+    return Boolean(store.secrets[profile.secretName.trim()]);
+  }
+
+  return false;
 }
 
 function readConfigStore() {
@@ -1869,6 +1953,7 @@ function pickDefinedProfileFields(source) {
     executionMode: optionalTrimmedString(source.executionMode),
     groundingMode: optionalTrimmedString(source.groundingMode),
     inputSource: optionalTrimmedString(source.inputSource),
+    routingMode: optionalTrimmedString(source.routingMode),
     outputMode: optionalTrimmedString(source.outputMode),
     previewChars: Number.isInteger(source.previewChars) ? source.previewChars : undefined,
     strictDelegation: typeof source.strictDelegation === "boolean" ? source.strictDelegation : undefined,
@@ -1907,6 +1992,7 @@ function normalizeDelegationArgs(source) {
   args.executionMode = normalizeEnumValue(args.executionMode, EXECUTION_MODES, "executionMode", "raw");
   args.groundingMode = normalizeEnumValue(args.groundingMode, GROUNDING_MODES, "groundingMode", "off");
   args.inputSource = normalizeEnumValue(args.inputSource, INPUT_SOURCES, "inputSource", "direct");
+  args.routingMode = normalizeEnumValue(args.routingMode, ROUTING_MODES, "routingMode", "profile");
   args.outputMode = normalizeEnumValue(args.outputMode, OUTPUT_MODES, "outputMode", undefined);
   args.previewChars = clampInteger(args.previewChars, 100, 20000, DEFAULT_PREVIEW_CHARS);
   if (args.thinkingMode !== undefined) {
@@ -2102,8 +2188,14 @@ function resolveApiKey(args) {
 
   if (typeof args.secretName === "string" && args.secretName.trim()) {
     const name = normalizeSecretName(args.secretName);
-    const record = getSecretRecord(name);
-    return decryptSecretRecord(record, resolveMasterKeyForRecord(args, record), name);
+    try {
+      const record = getSecretRecord(name);
+      return decryptSecretRecord(record, resolveMasterKeyForRecord(args, record), name);
+    } catch (error) {
+      if (!String(error?.message ?? "").includes(`Secret '${name}' was not found.`)) {
+        throw error;
+      }
+    }
   }
 
   const envNames = envNamesForCall(args);

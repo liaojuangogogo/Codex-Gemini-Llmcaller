@@ -35,6 +35,7 @@ export function resolveRoute(args, explicitArgs = {}) {
     executionMode: args.executionMode ?? "raw",
     groundingMode: args.groundingMode ?? "off",
     inputSource: args.inputSource ?? "direct",
+    routingMode: args.routingMode ?? "profile",
     outputMode,
     profileName: args.profileName,
     provider: args.provider,

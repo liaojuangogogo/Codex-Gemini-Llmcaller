@@ -152,6 +152,7 @@ $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 - `tools`
 - `toolConfig`
 - `cachedContent`
+- `routingMode`
 - `autoContinue`
 - `maxContinuationRounds`
 - `outputMetaFooter`
@@ -159,6 +160,28 @@ $HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
 - `fallbackProfiles`
 
 `provider` 表示调用协议，例如 `google`、`openai-compatible`、`anthropic`。`providerId` 表示具体服务商，例如 `gemini`、`deepseek`、`openrouter`，用于路由能力判断和环境变量优先级选择。旧 profile 没有 `providerId` 时，插件会根据 `baseUrl`、`model`、`apiKeyEnv` 或 `secretName` 推断。
+
+`routingMode` 默认为 `profile`，保持旧版兼容，不主动改变默认 profile。设置为 `auto` 时，插件会根据请求做基础路由：
+
+- 涉及今天、最新、天气、新闻、价格、搜索、联网、实时等内容时，自动切到 Gemini grounded profile。
+- 带图片输入时，优先使用支持 `imageInputs` 的 Gemini profile。
+- 核对上文回答且本地已有 DeepSeek key 或环境变量时，优先使用 `deepseek-default`。
+
+示例：
+
+```json
+{
+  "routingMode": "auto",
+  "executionMode": "review",
+  "inputSource": "context",
+  "messages": [
+    {
+      "role": "user",
+      "content": "请检查上面的 Codex 回答是否合理。"
+    }
+  ]
+}
+```
 
 profile 不允许保存 `Authorization`、`x-api-key`、`x-goog-api-key`、`api-key` 这类携带密钥的 header。请使用 `secretName`。
 

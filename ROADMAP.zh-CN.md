@@ -11,6 +11,7 @@
 - 已增加 `provider_capabilities` 工具和 provider capability registry，为后续自动模型选择和 capability 级 fallback 铺底。
 - 已抽出 `provider-registry.mjs`，集中管理内置 profile、provider 能力、环境变量优先级和 provider 预设。
 - `setup.mjs` 已支持 `--providers gemini,deepseek`、`--default-profile`、多 provider `--api-key-env` 和 `--install-only`，DeepSeek 已进入正式初始化路径。
+- 已新增显式 `routingMode: "auto"`：在不改变默认兼容行为的前提下，支持基础自主路由，包含 DeepSeek 上文核对、Gemini grounded 新鲜信息请求和图片能力选择。
 
 ## 1. Codex 回答核对场景的低额度模式
 
