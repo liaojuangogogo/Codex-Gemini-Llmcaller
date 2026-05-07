@@ -65,3 +65,23 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 - 安装指南：`./plugins/Codex-Gemini-Llmcaller/INSTALL.zh-CN.md`
 - 用户文档：`./plugins/Codex-Gemini-Llmcaller/USER_GUIDE.zh-CN.md`
 - 测试用例：`./plugins/Codex-Gemini-Llmcaller/TEST_CASES.zh-CN.md`
+
+## DeepSeek
+
+DeepSeek is supported through its official OpenAI-compatible Chat Completions API:
+
+```json
+{
+  "provider": "openai-compatible",
+  "model": "deepseek-v4-flash",
+  "baseUrl": "https://api.deepseek.com",
+  "apiKeyEnv": "DEEPSEEK_API_KEY"
+}
+```
+
+Built-in profiles:
+
+- `deepseek-default`: `deepseek-v4-flash` with thinking disabled
+- `deepseek-pro`: `deepseek-v4-pro` with thinking enabled
+
+For review requests over prior Codex context, the plugin now defaults to compact `outputMode: "json"` so external-model review results do not unnecessarily bloat the Codex context.

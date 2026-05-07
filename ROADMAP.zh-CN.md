@@ -2,6 +2,12 @@
 
 本文记录后续改造需求、设计取舍和优先级。目标是在保持严格委托边界和本地 secret 安全模型的前提下，降低 Codex 额度消耗，扩展多模型能力，并让插件具备更稳定的路由、联网和失败降级策略。
 
+## 当前进展
+
+- 已新增路由模块基础：review + context 默认使用紧凑 `outputMode: "json"`。
+- 已按 DeepSeek 官方 OpenAI-compatible Chat Completions 接口接入 DeepSeek，默认 base URL 为 `https://api.deepseek.com`，内置 `deepseek-default` 和 `deepseek-pro` profile。
+- 已增加 DeepSeek JSON 输出、thinkingMode 参数映射和 402/422/429/503 错误分类。
+
 ## 1. Codex 回答核对场景的低额度模式
 
 ### 需求

@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { OUTPUT_MODES, applyOutputModeToMessages, parseJsonOutput, resolveRoute } from "./router.mjs";
 
 const SERVER_NAME = "Codex-Gemini-Llmcaller";
 const SERVER_VERSION = "0.3.2";
@@ -69,6 +70,30 @@ const DEFAULT_GROUNDED_20_FLASH_PROFILE = {
   groundingMode: "google_search"
 };
 
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_DEEPSEEK_PROFILE = {
+  provider: "openai-compatible",
+  model: "deepseek-v4-flash",
+  secretName: "deepseek-default",
+  baseUrl: DEEPSEEK_BASE_URL,
+  timeoutMs: DEFAULT_TIMEOUT_MS,
+  maxTokens: 4096,
+  thinkingMode: "disabled",
+  autoContinue: false
+};
+
+const DEFAULT_DEEPSEEK_PRO_PROFILE = {
+  provider: "openai-compatible",
+  model: "deepseek-v4-pro",
+  secretName: "deepseek-default",
+  baseUrl: DEEPSEEK_BASE_URL,
+  timeoutMs: DEFAULT_TIMEOUT_MS,
+  maxTokens: 4096,
+  thinkingMode: "enabled",
+  reasoningEffort: "high",
+  autoContinue: false
+};
+
 const PROVIDER_PRESETS = [
   {
     provider: "openai-compatible",
@@ -80,9 +105,17 @@ const PROVIDER_PRESETS = [
   {
     provider: "openai-compatible",
     name: "DeepSeek",
-    baseUrl: "https://api.deepseek.com/v1",
+    baseUrl: DEEPSEEK_BASE_URL,
     apiKeyEnv: "DEEPSEEK_API_KEY",
-    notes: "Common model ids include deepseek-chat and deepseek-reasoner."
+    models: ["deepseek-v4-flash", "deepseek-v4-pro"],
+    capabilities: {
+      chatCompletions: true,
+      jsonOutput: true,
+      thinkingMode: true,
+      images: false,
+      grounding: false
+    },
+    notes: "Official OpenAI-compatible endpoint. Use deepseek-v4-flash for general chat and deepseek-v4-pro for higher quality. Legacy deepseek-chat/deepseek-reasoner are scheduled for discontinuation by DeepSeek."
   },
   {
     provider: "openai-compatible",
@@ -154,7 +187,7 @@ const tools = [
         },
         model: {
           type: "string",
-          description: "Provider model id, for example deepseek-chat or gemini-3-flash-preview."
+          description: "Provider model id, for example deepseek-v4-flash, deepseek-v4-pro, or gemini-3-flash-preview."
         },
         prompt: {
           type: "string",
@@ -179,6 +212,11 @@ const tools = [
           type: "string",
           enum: ["direct", "context"],
           description: "Whether the prompt is direct user input or conversation context passed through unchanged."
+        },
+        outputMode: {
+          type: "string",
+          enum: ["full", "summary", "json", "preview"],
+          description: "Controls how much model output is returned to Codex. Review context calls default to json."
         },
         imageInputs: {
           type: "array",
@@ -279,6 +317,16 @@ const tools = [
           type: "string",
           description: "Gemini thinkingConfig.thinkingLevel convenience value, for example low."
         },
+        thinkingMode: {
+          type: "string",
+          enum: ["enabled", "disabled"],
+          description: "Provider thinking switch. For DeepSeek this maps to body.thinking.type."
+        },
+        reasoningEffort: {
+          type: "string",
+          enum: ["low", "medium", "high", "max", "xhigh"],
+          description: "Provider reasoning effort. For DeepSeek this maps to reasoning_effort."
+        },
         tools: {
           type: "array",
           description: "Gemini tools array in the official REST shape.",
@@ -371,6 +419,7 @@ const tools = [
         executionMode: { type: "string", enum: ["raw", "review", "rewrite", "extract"] },
         groundingMode: { type: "string", enum: ["off", "google_search"] },
         inputSource: { type: "string", enum: ["direct", "context"] },
+        outputMode: { type: "string", enum: ["full", "summary", "json", "preview"] },
         strictDelegation: { type: "boolean" },
         maxImages: { type: "integer", minimum: 1, maximum: 16 },
         maxImageBytes: { type: "integer", minimum: 1024, maximum: 104857600 },
@@ -378,6 +427,8 @@ const tools = [
         temperature: { type: "number", minimum: 0, maximum: 2 },
         maxTokens: { type: "integer", minimum: 1, maximum: 200000 },
         thinkingLevel: { type: "string" },
+        thinkingMode: { type: "string", enum: ["enabled", "disabled"] },
+        reasoningEffort: { type: "string", enum: ["low", "medium", "high", "max", "xhigh"] },
         generationConfig: { type: "object" },
         safetySettings: { type: "array", items: { type: "object" } },
         systemInstruction: {
@@ -662,7 +713,7 @@ async function callModelAttempt(args) {
   requireString(args.model, "model");
 
   const allowEmptyMessages = args.provider === "google" && Array.isArray(args.rawContents) && args.rawContents.length > 0;
-  const messages = normalizeMessages(args, { allowEmpty: allowEmptyMessages });
+  const messages = applyOutputModeToMessages(args, normalizeMessages(args, { allowEmpty: allowEmptyMessages }));
   const apiKey = resolveApiKey(args);
   const timeoutMs = clampInteger(args.timeoutMs, 1000, 600000, DEFAULT_TIMEOUT_MS);
 
@@ -717,12 +768,14 @@ function enrichModelResult(result, args) {
     profileName: result.profileName ?? args.profileName
   };
   const tokenUsage = normalizeTokenUsage(modelInfo.provider, result.usage);
+  const output = normalizeOutputModeResult(result, args);
 
   return removeUndefined({
-    ...result,
+    ...output,
     modelInfo,
     tokenUsage,
     delegation: buildDelegationInfo(args),
+    route: args.route,
     outputMetaFooter: resolveOutputMetaFooter(args),
     configWarning: args.configWarning
   });
@@ -733,9 +786,30 @@ function buildDelegationInfo(args) {
     executionMode: args.executionMode ?? "raw",
     groundingMode: args.groundingMode ?? "off",
     inputSource: args.inputSource ?? "direct",
+    outputMode: args.outputMode ?? "full",
     imageCount: Array.isArray(args.imageInputs) ? args.imageInputs.length : 0,
     strictDelegation: args.strictDelegation !== false,
     codexPreprocessedFacts: false
+  };
+}
+
+function normalizeOutputModeResult(result, args) {
+  if (args.outputMode !== "json") {
+    return result;
+  }
+
+  const outputJson = parseJsonOutput(result.text);
+  if (!outputJson) {
+    return {
+      ...result,
+      outputJsonParseError: "Model response was not valid JSON. Returning raw text as summary fallback."
+    };
+  }
+
+  return {
+    ...result,
+    text: JSON.stringify(outputJson, null, 2),
+    outputJson
   };
 }
 
@@ -857,12 +931,7 @@ function formatModelFailures(failures) {
 }
 
 async function callOpenAiCompatible(args, messages, apiKey, timeoutMs) {
-  const baseUrl = trimTrailingSlash(
-    args.baseUrl ||
-      process.env.OPENAI_COMPATIBLE_BASE_URL ||
-      process.env.OPENAI_BASE_URL ||
-      "https://api.openai.com/v1"
-  );
+  const baseUrl = resolveOpenAiCompatibleBaseUrl(args);
   const url = `${baseUrl}/chat/completions`;
   const body = {
     model: args.model,
@@ -870,6 +939,9 @@ async function callOpenAiCompatible(args, messages, apiKey, timeoutMs) {
     stream: false,
     ...optionalNumber("temperature", args.temperature),
     ...optionalInteger("max_tokens", args.maxTokens),
+    ...openAiCompatibleJsonOutputFields(args),
+    ...deepSeekThinkingFields(args),
+    ...deepSeekReasoningEffortFields(args),
     ...(isPlainObject(args.extraBody) ? args.extraBody : {})
   };
 
@@ -887,6 +959,73 @@ async function callOpenAiCompatible(args, messages, apiKey, timeoutMs) {
     usage: raw?.usage,
     raw
   };
+}
+
+function resolveOpenAiCompatibleBaseUrl(args) {
+  if (args.baseUrl) {
+    return trimTrailingSlash(args.baseUrl);
+  }
+
+  if (isDeepSeekCallArgs(args)) {
+    return trimTrailingSlash(process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL);
+  }
+
+  return trimTrailingSlash(
+    process.env.OPENAI_COMPATIBLE_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://api.openai.com/v1"
+  );
+}
+
+function openAiCompatibleJsonOutputFields(args) {
+  if (args.outputMode !== "json") {
+    return {};
+  }
+  if (isPlainObject(args.extraBody?.response_format)) {
+    return {};
+  }
+
+  return {
+    response_format: {
+      type: "json_object"
+    }
+  };
+}
+
+function deepSeekThinkingFields(args) {
+  if (!isDeepSeekCallArgs(args) || !args.thinkingMode) {
+    return {};
+  }
+  if (isPlainObject(args.extraBody?.thinking)) {
+    return {};
+  }
+
+  return {
+    thinking: {
+      type: args.thinkingMode
+    }
+  };
+}
+
+function deepSeekReasoningEffortFields(args) {
+  if (!isDeepSeekCallArgs(args) || !args.reasoningEffort) {
+    return {};
+  }
+  if (args.extraBody?.reasoning_effort) {
+    return {};
+  }
+
+  return {
+    reasoning_effort: mapDeepSeekReasoningEffort(args.reasoningEffort)
+  };
+}
+
+function mapDeepSeekReasoningEffort(value) {
+  if (value === "max" || value === "xhigh") {
+    return "max";
+  }
+
+  return "high";
 }
 
 async function callAnthropic(args, messages, apiKey, timeoutMs) {
@@ -1215,6 +1354,9 @@ function buildGoogleGenerationConfig(args) {
       ...(isPlainObject(generationConfig.thinkingConfig) ? generationConfig.thinkingConfig : {}),
       thinkingLevel: args.thinkingLevel.trim()
     };
+  }
+  if (args.outputMode === "json" && !generationConfig.responseMimeType) {
+    generationConfig.responseMimeType = "application/json";
   }
 
   return generationConfig;
@@ -1561,7 +1703,9 @@ function defaultConfigStore() {
       [DEFAULT_PROFILE_NAME]: { ...DEFAULT_PROFILE },
       [GROUNDED_PROFILE_NAME]: { ...DEFAULT_GROUNDED_PROFILE },
       "gemini-grounded-lite": { ...DEFAULT_GROUNDED_LITE_PROFILE },
-      "gemini-grounded-20-flash": { ...DEFAULT_GROUNDED_20_FLASH_PROFILE }
+      "gemini-grounded-20-flash": { ...DEFAULT_GROUNDED_20_FLASH_PROFILE },
+      "deepseek-default": { ...DEFAULT_DEEPSEEK_PROFILE },
+      "deepseek-pro": { ...DEFAULT_DEEPSEEK_PRO_PROFILE }
     }
   };
 }
@@ -1701,6 +1845,7 @@ function pickDefinedProfileFields(source) {
     executionMode: optionalTrimmedString(source.executionMode),
     groundingMode: optionalTrimmedString(source.groundingMode),
     inputSource: optionalTrimmedString(source.inputSource),
+    outputMode: optionalTrimmedString(source.outputMode),
     strictDelegation: typeof source.strictDelegation === "boolean" ? source.strictDelegation : undefined,
     maxImages: Number.isInteger(source.maxImages) ? source.maxImages : undefined,
     maxImageBytes: Number.isInteger(source.maxImageBytes) ? source.maxImageBytes : undefined,
@@ -1708,6 +1853,8 @@ function pickDefinedProfileFields(source) {
     temperature: typeof source.temperature === "number" && Number.isFinite(source.temperature) ? source.temperature : undefined,
     maxTokens: Number.isInteger(source.maxTokens) ? source.maxTokens : undefined,
     thinkingLevel: optionalTrimmedString(source.thinkingLevel),
+    thinkingMode: optionalTrimmedString(source.thinkingMode),
+    reasoningEffort: optionalTrimmedString(source.reasoningEffort),
     systemInstruction: typeof source.systemInstruction === "string"
       ? optionalTrimmedString(source.systemInstruction)
       : isPlainObject(source.systemInstruction) ? source.systemInstruction : undefined,
@@ -1734,11 +1881,18 @@ function normalizeDelegationArgs(source) {
   args.executionMode = normalizeEnumValue(args.executionMode, EXECUTION_MODES, "executionMode", "raw");
   args.groundingMode = normalizeEnumValue(args.groundingMode, GROUNDING_MODES, "groundingMode", "off");
   args.inputSource = normalizeEnumValue(args.inputSource, INPUT_SOURCES, "inputSource", "direct");
+  args.outputMode = normalizeEnumValue(args.outputMode, OUTPUT_MODES, "outputMode", undefined);
+  if (args.thinkingMode !== undefined) {
+    args.thinkingMode = normalizeEnumValue(args.thinkingMode, new Set(["enabled", "disabled"]), "thinkingMode", undefined);
+  }
+  if (args.reasoningEffort !== undefined) {
+    args.reasoningEffort = normalizeEnumValue(args.reasoningEffort, new Set(["low", "medium", "high", "max", "xhigh"]), "reasoningEffort", undefined);
+  }
   args.strictDelegation = args.strictDelegation !== false;
   args.maxImages = clampInteger(args.maxImages, 1, 16, DEFAULT_MAX_IMAGES);
   args.maxImageBytes = clampInteger(args.maxImageBytes, 1024, 100 * 1024 * 1024, DEFAULT_MAX_IMAGE_BYTES);
 
-  return args;
+  return resolveRoute(args, source);
 }
 
 function normalizeEnumValue(value, allowed, name, fallback) {
@@ -2269,6 +2423,33 @@ async function postJson(url, body, headers, timeoutMs, secretValues = [], callAr
 function formatHttpErrorMessage(response, detail, callArgs = {}) {
   const base = `HTTP ${response.status} ${response.statusText}: ${detail}`;
 
+  if (isDeepSeekCallArgs(callArgs)) {
+    if (response.status === 402) {
+      return [
+        base,
+        "DeepSeek returned 402 Insufficient Balance. Check the DeepSeek account balance or switch to a fallback profile."
+      ].join("\n");
+    }
+    if (response.status === 422) {
+      return [
+        base,
+        "DeepSeek returned 422 Unprocessable Entity. Check request parameters such as model, max_tokens, response_format, or thinking."
+      ].join("\n");
+    }
+    if (response.status === 429) {
+      return [
+        base,
+        "DeepSeek returned 429 Rate Limit. Reduce request frequency or switch to a fallback profile."
+      ].join("\n");
+    }
+    if (response.status === 503) {
+      return [
+        base,
+        "DeepSeek returned 503 Server Overloaded. Retry later or switch to a fallback profile."
+      ].join("\n");
+    }
+  }
+
   if (response.status === 429 && callArgs.provider === "google" && callArgs.groundingMode === "google_search") {
     return [
       base,
@@ -2285,6 +2466,20 @@ function formatHttpErrorMessage(response, detail, callArgs = {}) {
   }
 
   return base;
+}
+
+function isDeepSeekCallArgs(args = {}) {
+  if (args.provider !== "openai-compatible") {
+    return false;
+  }
+
+  const baseUrl = String(args.baseUrl || "").toLowerCase();
+  const model = String(args.model || "").toLowerCase();
+  const apiKeyEnv = String(args.apiKeyEnv || "").toUpperCase();
+
+  return baseUrl.includes("deepseek.com") ||
+    model.startsWith("deepseek-") ||
+    apiKeyEnv === "DEEPSEEK_API_KEY";
 }
 
 function shouldUsePowerShellHttpFallback(error) {

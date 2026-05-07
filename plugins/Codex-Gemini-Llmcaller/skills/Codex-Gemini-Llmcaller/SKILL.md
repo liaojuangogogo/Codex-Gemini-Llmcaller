@@ -28,6 +28,7 @@ Choose the mode yourself. Do not require the user to say the mode name.
 - `executionMode: "rewrite"` for "rewrite/polish/translate/shorten".
 - `executionMode: "extract"` for "extract/convert to JSON/table/list".
 - `inputSource: "context"` when the request refers to earlier conversation text; otherwise use `direct`.
+- Use `outputMode: "json"` by default for review requests that check earlier context, unless the user explicitly asks for the full external-model answer. The returned JSON should stay compact and include verdict, severity, confidence, issues, suggested_correction, and need_full_review.
 
 Default to `groundingMode: "off"`. Use `groundingMode: "google_search"` only when the user's intent requires fresh or external information, such as today, latest, current weather, news, price, real-time, search, online, or explicit web access. This must use Gemini's Google Search grounding, not Codex search.
 
@@ -105,6 +106,7 @@ Advanced provider values:
 
 - Gemini: `provider: "google"`
 - OpenAI-compatible: `provider: "openai-compatible"` plus provider `/v1` `baseUrl`
+- DeepSeek: `provider: "openai-compatible"`, `baseUrl: "https://api.deepseek.com"`, and model ids such as `deepseek-v4-flash` or `deepseek-v4-pro`
 - Anthropic: `provider: "anthropic"`
 
 Prefer profiles for repeated usage. Use explicit arguments only for one-off overrides.

@@ -271,3 +271,65 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
 该脚本内部调用 `handleToolCall("call_model")`，会输出与 MCP 工具一致的可见文本，包括模型和 token footer。
+
+## 11. DeepSeek
+
+插件已按 DeepSeek 官方 OpenAI-compatible Chat Completions 接口接入 DeepSeek。
+
+官方配置要点：
+
+- `provider`: `openai-compatible`
+- `baseUrl`: `https://api.deepseek.com`
+- API key 环境变量：`DEEPSEEK_API_KEY`
+- 推荐模型：`deepseek-v4-flash`、`deepseek-v4-pro`
+
+内置 profile：
+
+```text
+deepseek-default -> deepseek-v4-flash, thinkingMode disabled
+deepseek-pro     -> deepseek-v4-pro, thinkingMode enabled
+```
+
+如果要使用本地加密 secret，建议把 DeepSeek API key 保存为 `deepseek-default`。不要把真实 API key 粘贴到聊天、命令行参数、日志或仓库文件中。
+
+一次性显式调用示例：
+
+```json
+{
+  "provider": "openai-compatible",
+  "model": "deepseek-v4-flash",
+  "baseUrl": "https://api.deepseek.com",
+  "apiKeyEnv": "DEEPSEEK_API_KEY",
+  "prompt": "请简短解释这个方案。",
+  "executionMode": "raw",
+  "groundingMode": "off"
+}
+```
+
+用于核对 Codex 之前回答时，插件会优先使用紧凑的 `outputMode: "json"`，减少长评语回流到 Codex 上下文：
+
+```json
+{
+  "profileName": "deepseek-default",
+  "messages": [
+    {
+      "role": "user",
+      "content": "请检查上面的 Codex 回答是否合理。"
+    }
+  ],
+  "executionMode": "review",
+  "inputSource": "context",
+  "outputMode": "json"
+}
+```
+
+如果要启用 DeepSeek thinking，可在 profile 或单次调用中设置：
+
+```json
+{
+  "thinkingMode": "enabled",
+  "reasoningEffort": "high"
+}
+```
+
+DeepSeek 不提供 Gemini Google Search grounding。需要联网搜索时仍应使用支持联网的 Gemini grounded profile，或配置具备联网能力的其他 provider/profile。

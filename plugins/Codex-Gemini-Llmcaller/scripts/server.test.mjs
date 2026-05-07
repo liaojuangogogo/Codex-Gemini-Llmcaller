@@ -333,6 +333,7 @@ async function testDelegationDefaultsDoNotGround() {
       executionMode: "raw",
       groundingMode: "off",
       inputSource: "direct",
+      outputMode: "full",
       imageCount: 0,
       strictDelegation: true,
       codexPreprocessedFacts: false
@@ -793,6 +794,116 @@ async function testProviderTokenUsageMappings() {
   }
 }
 
+async function testDeepSeekOfficialRequestShape() {
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      headers: options.headers,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: "mostly_correct",
+                severity: "low",
+                confidence: 0.88,
+                issues: [],
+                missing_context: "",
+                suggested_correction: "",
+                need_full_review: false
+              })
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 11,
+          completion_tokens: 12,
+          total_tokens: 23
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "openai-compatible",
+      model: "deepseek-v4-flash",
+      apiKey: TEST_SECRET,
+      messages: [
+        {
+          role: "user",
+          content: "Check the previous answer."
+        }
+      ],
+      executionMode: "review",
+      inputSource: "context",
+      thinkingMode: "enabled",
+      reasoningEffort: "max"
+    });
+
+    assert.equal(captured.url, "https://api.deepseek.com/chat/completions");
+    assert.equal(captured.headers.Authorization, `Bearer ${TEST_SECRET}`);
+    assert.equal(captured.body.model, "deepseek-v4-flash");
+    assert.equal(captured.body.stream, false);
+    assert.deepEqual(captured.body.response_format, { type: "json_object" });
+    assert.deepEqual(captured.body.thinking, { type: "enabled" });
+    assert.equal(captured.body.reasoning_effort, "max");
+    assert.equal(captured.body.messages[0].role, "system");
+    assert(captured.body.messages[0].content.includes("Return only valid JSON"));
+    assert.equal(result.delegation.outputMode, "json");
+    assert.equal(result.route.outputMode, "json");
+    assert.equal(result.outputJson.verdict, "mostly_correct");
+    assert.equal(result.tokenUsage.total, 23);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function testDeepSeekPresetAndErrorClassification() {
+  const presetsResult = await handleToolCall({
+    name: "provider_presets",
+    arguments: {}
+  });
+  const deepSeekPreset = presetsResult.structuredContent.presets.find((preset) => preset.name === "DeepSeek");
+  assert.equal(deepSeekPreset.baseUrl, "https://api.deepseek.com");
+  assert(deepSeekPreset.models.includes("deepseek-v4-flash"));
+  assert.equal(deepSeekPreset.capabilities.jsonOutput, true);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 402,
+    statusText: "Payment Required",
+    text: async () => JSON.stringify({
+      error: {
+        message: `insufficient balance ${TEST_SECRET}`
+      }
+    })
+  });
+
+  try {
+    await assert.rejects(
+      () => callModel({
+        provider: "openai-compatible",
+        model: "deepseek-v4-flash",
+        apiKey: TEST_SECRET,
+        prompt: "hello"
+      }),
+      (error) => error.message.includes("DeepSeek returned 402 Insufficient Balance") && !error.message.includes(TEST_SECRET)
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 async function testInvalidConfigFallback() {
   resetSecretStore();
   writeFileSync(testConfigPath, "{ invalid json", "utf8");
@@ -1231,6 +1342,8 @@ try {
   await testVisibleMetaFooter();
   await testOutputMetaFooterConfigPrecedence();
   await testProviderTokenUsageMappings();
+  await testDeepSeekOfficialRequestShape();
+  await testDeepSeekPresetAndErrorClassification();
   await testInvalidConfigFallback();
   await testExistingGroundedProfileMigratesOffPreviewModel();
   await testProfileFallback();
