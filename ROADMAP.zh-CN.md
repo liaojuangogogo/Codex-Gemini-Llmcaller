@@ -2,6 +2,20 @@
 
 本文记录后续改造需求、设计取舍和优先级。目标是在保持严格委托边界和本地 secret 安全模型的前提下，降低 Codex 额度消耗，扩展多模型能力，并让插件具备更稳定的路由、联网和失败降级策略。
 
+## 需求目标排序
+
+当前改造按以下顺序推进，先交付可验证的最小闭环，再进入更高风险的输出和工具执行能力：
+
+1. 统一多模态输入层：新增 `mediaInputs`，兼容旧 `imageInputs`，先支持文本、图片、音频、视频、PDF/文档、URL 和预上传 `fileUri` 的 Gemini 输入。
+2. 大文件 File API 上传：为长视频、大 PDF 等新增 Gemini File API 上传路径，避免把大文件直接塞进 MCP 调用和 Codex 上下文。
+3. 能力表与自动路由适配：把图片、音频、视频、文档、联网、JSON、thinking 等能力写入 provider capability registry，让 `routingMode: "auto"` 可以按能力选模型。
+4. 可测试的意图解析与路由决策：在现有规则路由之上增加确定性优先的 intent parser，核心逻辑必须可用 mock provider 单测。
+5. 输出形态分层：文本继续走普通模型；图片生成、音频输出、文件型产物走独立 executor，并且默认只把摘要或路径回流给 Codex。
+6. 生图 executor：对需要图片产物的请求先生成高质量 prompt，再调用专用图片模型或 endpoint。
+7. 音频输出 executor：在用户明确要求语音时支持 `responseModalities` 或等价 TTS 路径，避免默认产生大体积音频回流。
+8. Function Calling/工具执行 executor：只在 allowlist、强参数校验和人工确认边界内执行，不让 LLM 直接触发不可逆操作。
+9. 全项目审计与发布封装：继续检查文档、安装、release-check、敏感信息、绝对路径、编码、fallback 和兼容迁移。
+
 ## 当前进展
 
 - 已新增路由模块基础：review + context 默认使用紧凑 `outputMode: "json"`。
@@ -11,7 +25,8 @@
 - 已增加 `provider_capabilities` 工具和 provider capability registry，为后续自动模型选择和 capability 级 fallback 铺底。
 - 已抽出 `provider-registry.mjs`，集中管理内置 profile、provider 能力、环境变量优先级和 provider 预设。
 - `setup.mjs` 已支持 `--providers gemini,deepseek`、`--default-profile`、多 provider `--api-key-env` 和 `--install-only`，DeepSeek 已进入正式初始化路径。
-- 已新增显式 `routingMode: "auto"`：在不改变默认兼容行为的前提下，支持基础自主路由，包含 DeepSeek 上文核对、Gemini grounded 新鲜信息请求和图片能力选择。
+- 已新增显式 `routingMode: "auto"`：在不改变默认兼容行为的前提下，支持基础自主路由，包含 DeepSeek 上文核对、Gemini grounded 新鲜信息请求和多模态能力选择。
+- 已完成第一阶段统一多模态输入层：`mediaInputs` 支持文本、图片、音频、视频、文档、URL、本地路径和预上传 Gemini `fileUri`；`routingMode: "auto"` 遇到多模态输入会切到 Gemini。
 
 ## 1. Codex 回答核对场景的低额度模式
 
@@ -111,7 +126,7 @@
 
 1. 完善 OpenAI-compatible 路径：不同服务的 base URL、模型 id、错误格式和 token usage 兼容性。
 2. 完善 Anthropic 路径：Messages API 参数、max tokens、system prompt、错误分类。
-3. 增加 provider capability 描述：是否支持联网、图片、tool use、JSON 输出、reasoning 参数、缓存。
+3. 增加 provider capability 描述：是否支持联网、图片、音频、视频、文档、tool use、JSON 输出、reasoning 参数、缓存。
 4. 文档化常用 profile 模板，不内置任何 API key。
 
 ## 4. 自主路由：模型、联网与失败降级
@@ -122,7 +137,7 @@
 
 - 使用哪个 profile/model。
 - 是否启用联网 grounding。
-- 是否使用图片输入。
+- 是否使用图片、音频、视频或文档输入。
 - 失败后如何按 provider/model/profile 降级。
 - 输出完整结果、摘要、JSON 还是文件。
 
@@ -141,7 +156,7 @@
 | 普通问答、解释、写作 | 默认 profile，`groundingMode: "off"`，`outputMode: "full"` 或 `summary` |
 | 核对 Codex 回答 | review profile，`groundingMode: "off"`，`outputMode: "json"` |
 | 最新、今天、新闻、天气、价格、实时 | grounded profile，`groundingMode: "google_search"` |
-| 图片、截图、照片检查 | 支持图片的 profile，附带 `imageInputs` |
+| 图片、截图、音频、视频、PDF/文档检查 | 支持多模态的 Gemini profile，优先附带 `mediaInputs`；旧图片调用继续兼容 `imageInputs` |
 | 长报告或复杂审查 | `outputMode: "file"` 加短摘要 |
 | 失败、429、403、400 参数不兼容 | 按错误分类选择 fallback profile |
 
@@ -154,12 +169,7 @@
 
 ## 5. 推荐实施顺序
 
-1. 增加 `outputMode` 与 review 默认 `json/summary` 输出策略。
-2. 为 review JSON 增加 `severity`、字段长度限制和解析失败降级。
-3. 抽出路由模块，形成可单测的 `ResolvedRoute`。
-4. 增加 provider capability 描述和多模型 profile 模板。
-5. 扩展错误分类与 fallback 策略。
-6. 评估是否需要进程级路由微服务；只有在模块化路由不足时再推进。
+以文首“需求目标排序”为准。历史上已完成的 `outputMode`、review JSON、路由模块基础、provider registry、错误分类和 fallback 会继续保留；新的开发从统一多模态输入层开始，随后推进 File API、大文件处理、输出 executor 和工具执行安全边界。
 
 ## 6. 风险与约束
 

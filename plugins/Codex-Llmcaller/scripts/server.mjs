@@ -31,6 +31,8 @@ const SECRET_KDF = "scrypt";
 const LOCAL_USER_PROTECTION = "local-user-dpapi";
 const DEFAULT_MAX_IMAGES = 4;
 const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_MEDIA_INPUTS = 8;
+const DEFAULT_MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 const EXECUTION_MODES = new Set(["raw", "review", "rewrite", "extract"]);
 const GROUNDING_MODES = new Set(["off", "google_search"]);
 const INPUT_SOURCES = new Set(["direct", "context"]);
@@ -127,13 +129,30 @@ const tools = [
         },
         imageInputs: {
           type: "array",
-          description: "Images to pass to Gemini. Supports local file paths or image URLs.",
+          description: "Legacy image-only inputs to pass to Gemini. Prefer mediaInputs for new multimodal calls.",
           items: {
             type: "object",
             properties: {
               path: { type: "string" },
               url: { type: "string" },
               mimeType: { type: "string" }
+            },
+            additionalProperties: false
+          }
+        },
+        mediaInputs: {
+          type: "array",
+          description: "Multimodal inputs to pass to Gemini. Supports text, image, audio, video, PDF/document, local path, URL, or pre-uploaded Gemini fileUri.",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["text", "image", "audio", "video", "document", "file"] },
+              text: { type: "string" },
+              path: { type: "string" },
+              url: { type: "string" },
+              fileUri: { type: "string" },
+              mimeType: { type: "string" },
+              transfer: { type: "string", enum: ["auto", "inline", "file_uri"] }
             },
             additionalProperties: false
           }
@@ -153,6 +172,18 @@ const tools = [
           minimum: 1024,
           maximum: 104857600,
           description: "Maximum bytes per image. Defaults to 10 MB."
+        },
+        maxMediaInputs: {
+          type: "integer",
+          minimum: 1,
+          maximum: 32,
+          description: "Maximum number of mediaInputs. Defaults to 8."
+        },
+        maxMediaBytes: {
+          type: "integer",
+          minimum: 1024,
+          maximum: 104857600,
+          description: "Maximum inline bytes per media input. Defaults to 20 MB."
         },
         apiKey: {
           type: "string",
@@ -333,6 +364,8 @@ const tools = [
         strictDelegation: { type: "boolean" },
         maxImages: { type: "integer", minimum: 1, maximum: 16 },
         maxImageBytes: { type: "integer", minimum: 1024, maximum: 104857600 },
+        maxMediaInputs: { type: "integer", minimum: 1, maximum: 32 },
+        maxMediaBytes: { type: "integer", minimum: 1024, maximum: 104857600 },
         timeoutMs: { type: "integer", minimum: 1000, maximum: 600000 },
         temperature: { type: "number", minimum: 0, maximum: 2 },
         maxTokens: { type: "integer", minimum: 1, maximum: 200000 },
@@ -650,8 +683,8 @@ async function callModelAttempt(args) {
   if (args.groundingMode === "google_search" && args.provider !== "google") {
     throw rpcError(-32602, "groundingMode 'google_search' is currently supported only for provider 'google'.");
   }
-  if (hasImageInputs(args) && args.provider !== "google") {
-    throw rpcError(-32602, "imageInputs are currently supported only for provider 'google'.");
+  if ((hasImageInputs(args) || hasMediaInputs(args)) && args.provider !== "google") {
+    throw rpcError(-32602, "imageInputs and mediaInputs are currently supported only for provider 'google'.");
   }
 
   switch (args.provider) {
@@ -715,7 +748,8 @@ function buildDelegationInfo(args) {
     inputSource: args.inputSource ?? "direct",
     routingMode: args.routingMode ?? "profile",
     outputMode: args.outputMode ?? "full",
-    imageCount: Array.isArray(args.imageInputs) ? args.imageInputs.length : 0,
+    imageCount: countImageInputs(args),
+    mediaCount: Array.isArray(args.mediaInputs) ? args.mediaInputs.length : 0,
     strictDelegation: args.strictDelegation !== false,
     codexPreprocessedFacts: false
   };
@@ -920,13 +954,6 @@ function formatModelResponseText(result, returnRaw) {
 function formatModelMetaFooter(result) {
   const usage = result.tokenUsage ?? {};
   const info = result.modelInfo ?? {};
-
-  return [
-    "---",
-    `模型: ${info.provider ?? "unknown"} / ${info.model ?? "unknown"}`,
-    `Profile: ${info.profileName ?? "unknown"}`,
-    `Tokens: input=${formatTokenValue(usage.input)}, output=${formatTokenValue(usage.output)}, total=${formatTokenValue(usage.total)}`
-  ].join("\n");
 
   return [
     "---",
@@ -1167,8 +1194,8 @@ async function callGoogle(args, messages, apiKey, timeoutMs) {
 }
 
 async function prepareGoogleArgs(args, timeoutMs) {
-  if (Array.isArray(args.rawContents) && args.rawContents.length > 0 && hasImageInputs(args)) {
-    throw rpcError(-32602, "imageInputs cannot be combined with rawContents. Put image parts directly in rawContents or remove rawContents.");
+  if (Array.isArray(args.rawContents) && args.rawContents.length > 0 && (hasImageInputs(args) || hasMediaInputs(args))) {
+    throw rpcError(-32602, "imageInputs/mediaInputs cannot be combined with rawContents. Put media parts directly in rawContents or remove rawContents.");
   }
 
   const prepared = {
@@ -1180,8 +1207,15 @@ async function prepareGoogleArgs(args, timeoutMs) {
     prepared.googleTools = undefined;
   }
 
+  const resolvedMediaParts = [];
   if (hasImageInputs(args)) {
-    prepared.resolvedImageParts = await resolveImageParts(args.imageInputs, args, timeoutMs);
+    resolvedMediaParts.push(...await resolveLegacyImageParts(args.imageInputs, args, timeoutMs));
+  }
+  if (hasMediaInputs(args)) {
+    resolvedMediaParts.push(...await resolveMediaParts(args.mediaInputs, args, timeoutMs));
+  }
+  if (resolvedMediaParts.length) {
+    prepared.resolvedMediaParts = resolvedMediaParts;
   }
 
   return prepared;
@@ -1201,6 +1235,36 @@ function ensureGoogleSearchTool(tools) {
 
 function hasImageInputs(args) {
   return Array.isArray(args.imageInputs) && args.imageInputs.length > 0;
+}
+
+function hasMediaInputs(args) {
+  return Array.isArray(args.mediaInputs) && args.mediaInputs.length > 0;
+}
+
+function hasMultimodalInputs(args) {
+  return hasImageInputs(args) || hasMediaInputs(args);
+}
+
+function countImageInputs(args) {
+  const legacyCount = Array.isArray(args.imageInputs) ? args.imageInputs.length : 0;
+  const mediaImageCount = Array.isArray(args.mediaInputs)
+    ? args.mediaInputs.filter((input) => mediaInputLooksLikeImage(input)).length
+    : 0;
+  return legacyCount + mediaImageCount;
+}
+
+function mediaInputLooksLikeImage(input) {
+  if (!isPlainObject(input)) {
+    return false;
+  }
+  if (input.type === "image") {
+    return true;
+  }
+  const mimeType = typeof input.mimeType === "string" ? input.mimeType.toLowerCase() : "";
+  if (mimeType.startsWith("image/")) {
+    return true;
+  }
+  return typeof input.path === "string" && mimeTypeFromPath(input.path).startsWith("image/");
 }
 
 function extractGoogleText(raw) {
@@ -1337,12 +1401,12 @@ function buildGoogleContents(args, messages) {
 
   const nonSystemMessages = messages.filter((message) => message.role !== "system");
   const lastUserIndex = findLastIndex(nonSystemMessages, (message) => message.role !== "assistant");
-  const imageParts = Array.isArray(args.resolvedImageParts) ? args.resolvedImageParts : [];
+  const mediaParts = Array.isArray(args.resolvedMediaParts) ? args.resolvedMediaParts : [];
 
   return nonSystemMessages.map((message, index) => {
     const parts = [{ text: message.content }];
-    if (index === lastUserIndex && imageParts.length) {
-      parts.unshift(...imageParts);
+    if (index === lastUserIndex && mediaParts.length) {
+      parts.unshift(...mediaParts);
     }
 
     return {
@@ -1396,7 +1460,7 @@ function buildGoogleGenerationConfig(args) {
   return generationConfig;
 }
 
-async function resolveImageParts(imageInputs, args, timeoutMs) {
+async function resolveLegacyImageParts(imageInputs, args, timeoutMs) {
   if (!Array.isArray(imageInputs)) {
     return [];
   }
@@ -1414,13 +1478,13 @@ async function resolveImageParts(imageInputs, args, timeoutMs) {
     if (!isPlainObject(input)) {
       throw rpcError(-32602, `imageInputs[${index}] must be an object.`);
     }
-    parts.push(await resolveImagePart(input, index, maxImageBytes, timeoutMs));
+    parts.push(await resolveLegacyImagePart(input, index, maxImageBytes, timeoutMs));
   }
 
   return parts;
 }
 
-async function resolveImagePart(input, index, maxImageBytes, timeoutMs) {
+async function resolveLegacyImagePart(input, index, maxImageBytes, timeoutMs) {
   const hasPath = typeof input.path === "string" && input.path.trim();
   const hasUrl = typeof input.url === "string" && input.url.trim();
 
@@ -1437,6 +1501,108 @@ async function resolveImagePart(input, index, maxImageBytes, timeoutMs) {
   }
 
   return downloadImagePart(input.url.trim(), input.mimeType, index, maxImageBytes, timeoutMs);
+}
+
+async function resolveMediaParts(mediaInputs, args, timeoutMs) {
+  if (!Array.isArray(mediaInputs)) {
+    return [];
+  }
+
+  const maxMediaInputs = clampInteger(args.maxMediaInputs, 1, 32, DEFAULT_MAX_MEDIA_INPUTS);
+  const maxMediaBytes = clampInteger(args.maxMediaBytes, 1024, 100 * 1024 * 1024, DEFAULT_MAX_MEDIA_BYTES);
+
+  if (mediaInputs.length > maxMediaInputs) {
+    throw rpcError(-32602, `mediaInputs supports at most ${maxMediaInputs} item(s).`);
+  }
+
+  const parts = [];
+  for (let index = 0; index < mediaInputs.length; index += 1) {
+    const input = mediaInputs[index];
+    if (!isPlainObject(input)) {
+      throw rpcError(-32602, `mediaInputs[${index}] must be an object.`);
+    }
+    parts.push(await resolveMediaPart(input, index, maxMediaBytes, timeoutMs));
+  }
+
+  return parts;
+}
+
+async function resolveMediaPart(input, index, maxMediaBytes, timeoutMs) {
+  const label = `mediaInputs[${index}]`;
+  const type = normalizeMediaType(input.type);
+  const hasText = typeof input.text === "string" && input.text.length > 0;
+  const hasPath = typeof input.path === "string" && input.path.trim();
+  const hasUrl = typeof input.url === "string" && input.url.trim();
+  const hasFileUri = typeof input.fileUri === "string" && input.fileUri.trim();
+  const sourceCount = [hasText, hasPath, hasUrl, hasFileUri].filter(Boolean).length;
+
+  if (sourceCount !== 1) {
+    throw rpcError(-32602, `${label} must provide exactly one of text, path, url, or fileUri.`);
+  }
+  if (hasText) {
+    if (type && type !== "text") {
+      throw rpcError(-32602, `${label}.text can only be used with type 'text'.`);
+    }
+    return { text: input.text };
+  }
+  if (hasFileUri) {
+    const mimeType = normalizeMediaMimeType(input.mimeType, input.fileUri, type, label);
+    return fileDataPart(input.fileUri.trim(), mimeType);
+  }
+  if (input.transfer === "file_uri") {
+    throw rpcError(-32602, `${label}.transfer='file_uri' requires fileUri. File API upload will be added in a later node.`);
+  }
+  if (hasPath) {
+    const filePath = resolve(input.path.trim());
+    const bytes = readFileSync(filePath);
+    assertMediaSize(bytes.length, maxMediaBytes, label);
+    const mimeType = normalizeMediaMimeType(input.mimeType, filePath, type, label);
+    return inlineMediaPart(bytes, mimeType);
+  }
+
+  return downloadMediaPart(input.url.trim(), input.mimeType, type, index, maxMediaBytes, timeoutMs);
+}
+
+async function downloadMediaPart(urlText, explicitMimeType, type, index, maxMediaBytes, timeoutMs) {
+  const label = `mediaInputs[${index}]`;
+  let url;
+  try {
+    url = new URL(urlText);
+  } catch {
+    throw rpcError(-32602, `${label}.url must be a valid URL.`);
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw rpcError(-32602, `${label}.url must use http or https.`);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const contentLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
+    if (Number.isInteger(contentLength)) {
+      assertMediaSize(contentLength, maxMediaBytes, label);
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assertMediaSize(bytes.length, maxMediaBytes, label);
+    const mimeType = normalizeMediaMimeType(explicitMimeType || response.headers.get("content-type"), url.pathname, type, label);
+    return inlineMediaPart(bytes, mimeType);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw rpcError(-32603, `Timed out downloading ${label} after ${timeoutMs} ms.`);
+    }
+    throw rpcError(-32603, `Could not download ${label}: ${error?.message ?? "Unknown error"}`);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function downloadImagePart(urlText, explicitMimeType, index, maxImageBytes, timeoutMs) {
@@ -1489,10 +1655,89 @@ function inlineImagePart(bytes, mimeType) {
   };
 }
 
+function inlineMediaPart(bytes, mimeType) {
+  return {
+    inline_data: {
+      mime_type: mimeType,
+      data: Buffer.from(bytes).toString("base64")
+    }
+  };
+}
+
+function fileDataPart(fileUri, mimeType) {
+  return {
+    file_data: {
+      mime_type: mimeType,
+      file_uri: fileUri
+    }
+  };
+}
+
 function assertImageSize(byteLength, maxImageBytes, label) {
   if (byteLength > maxImageBytes) {
     throw rpcError(-32602, `${label} is ${byteLength} bytes, above maxImageBytes ${maxImageBytes}.`);
   }
+}
+
+function assertMediaSize(byteLength, maxMediaBytes, label) {
+  if (byteLength > maxMediaBytes) {
+    throw rpcError(-32602, `${label} is ${byteLength} bytes, above maxMediaBytes ${maxMediaBytes}. Use fileUri or reduce the file size.`);
+  }
+}
+
+function normalizeMediaType(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) {
+    return "";
+  }
+  if (!["text", "image", "audio", "video", "document", "file"].includes(normalized)) {
+    throw rpcError(-32602, `Unsupported media input type '${normalized}'.`);
+  }
+  return normalized;
+}
+
+function normalizeMediaMimeType(value, pathHint, type, label) {
+  const explicit = typeof value === "string"
+    ? value.split(";")[0].trim().toLowerCase()
+    : "";
+  const mimeType = explicit || mimeTypeFromPath(pathHint);
+
+  if (!mimeType) {
+    throw rpcError(-32602, `${label}.mimeType is required when it cannot be inferred from path or URL.`);
+  }
+  if (!isSupportedMediaMimeType(mimeType, type)) {
+    throw rpcError(-32602, `Unsupported media MIME type '${mimeType}' for ${label}.`);
+  }
+  return mimeType;
+}
+
+function isSupportedMediaMimeType(mimeType, type) {
+  if (type === "image") {
+    return isSupportedImageMimeType(mimeType);
+  }
+  if (type === "audio") {
+    return mimeType.startsWith("audio/");
+  }
+  if (type === "video") {
+    return mimeType.startsWith("video/");
+  }
+  if (type === "document") {
+    return isSupportedDocumentMimeType(mimeType);
+  }
+  if (type === "file") {
+    return isSupportedImageMimeType(mimeType) ||
+      mimeType.startsWith("audio/") ||
+      mimeType.startsWith("video/") ||
+      isSupportedDocumentMimeType(mimeType);
+  }
+  return isSupportedImageMimeType(mimeType) ||
+    mimeType.startsWith("audio/") ||
+    mimeType.startsWith("video/") ||
+    isSupportedDocumentMimeType(mimeType);
+}
+
+function isSupportedDocumentMimeType(mimeType) {
+  return ["application/pdf", "text/plain", "text/markdown", "text/csv", "application/json"].includes(mimeType);
 }
 
 function normalizeImageMimeType(value, pathHint) {
@@ -1501,11 +1746,15 @@ function normalizeImageMimeType(value, pathHint) {
     : "";
   const mimeType = explicit || mimeTypeFromPath(pathHint);
 
-  if (!["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"].includes(mimeType)) {
+  if (!isSupportedImageMimeType(mimeType)) {
     throw rpcError(-32602, `Unsupported image MIME type '${mimeType || "unknown"}'. Supported types: image/png, image/jpeg, image/webp, image/heic, image/heif.`);
   }
 
   return mimeType;
+}
+
+function isSupportedImageMimeType(mimeType) {
+  return ["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"].includes(mimeType);
 }
 
 function mimeTypeFromPath(pathHint) {
@@ -1521,6 +1770,30 @@ function mimeTypeFromPath(pathHint) {
       return "image/heic";
     case ".heif":
       return "image/heif";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+      return "audio/wav";
+    case ".m4a":
+      return "audio/mp4";
+    case ".ogg":
+      return "audio/ogg";
+    case ".mp4":
+      return "video/mp4";
+    case ".mov":
+      return "video/quicktime";
+    case ".webm":
+      return "video/webm";
+    case ".pdf":
+      return "application/pdf";
+    case ".txt":
+      return "text/plain";
+    case ".md":
+      return "text/markdown";
+    case ".csv":
+      return "text/csv";
+    case ".json":
+      return "application/json";
     default:
       return "";
   }
@@ -1696,7 +1969,7 @@ function selectAutoProfileName(config, explicitArgs) {
     }
     return normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME);
   }
-  if (hasImageInputs(explicitArgs)) {
+  if (hasMultimodalInputs(explicitArgs)) {
     if (shouldUpgrade && isProfileCallable(config.profiles[GEMINI_UPGRADE_PROFILE_NAME])) {
       return GEMINI_UPGRADE_PROFILE_NAME;
     }
@@ -1997,6 +2270,8 @@ function pickDefinedProfileFields(source) {
     strictDelegation: typeof source.strictDelegation === "boolean" ? source.strictDelegation : undefined,
     maxImages: Number.isInteger(source.maxImages) ? source.maxImages : undefined,
     maxImageBytes: Number.isInteger(source.maxImageBytes) ? source.maxImageBytes : undefined,
+    maxMediaInputs: Number.isInteger(source.maxMediaInputs) ? source.maxMediaInputs : undefined,
+    maxMediaBytes: Number.isInteger(source.maxMediaBytes) ? source.maxMediaBytes : undefined,
     timeoutMs: Number.isInteger(source.timeoutMs) ? source.timeoutMs : undefined,
     temperature: typeof source.temperature === "number" && Number.isFinite(source.temperature) ? source.temperature : undefined,
     maxTokens: Number.isInteger(source.maxTokens) ? source.maxTokens : undefined,

@@ -9,7 +9,7 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 
 ## 严格委托边界
 
-当用户要求 Gemini 或其他外部模型回答、审查、检查、改写、补充、搜索或检查图片时，Codex 只负责路由，不代替外部模型回答。
+当用户要求 Gemini 或其他外部模型回答、审查、检查、改写、补充、搜索或检查多模态材料时，Codex 只负责路由，不代替外部模型回答。
 
 - 调用外部模型前，不要使用 Codex 自己的 web、weather、search、shell、文件读取或其他工具收集事实。
 - 调用外部模型前，不要替外部模型改写、总结、验证或添加结论。
@@ -31,11 +31,11 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 - 对检查上文回答的 review 请求，默认使用 `outputMode: "json"`，除非用户明确要求完整外部模型原文。JSON 应保持紧凑，包含 `verdict`、`severity`、`confidence`、`issues`、`suggested_correction` 和 `need_full_review`。
 - 对长报告或长审查，如果用户不需要在聊天中直接看到完整外部模型文本，使用 `outputMode: "file"`。插件会把完整输出保存到当前工作区 `.tmp/model-results/`，并只返回路径和短预览。
 
-默认不传 `routingMode`，保持配置的默认 profile。如果用户明确要求“自动选择模型/是否联网/路由判断”，可传 `routingMode: "auto"`，让插件按请求选择 DeepSeek review、Gemini grounded 或图片能力 profile。
+默认不传 `routingMode`，保持配置的默认 profile。如果用户明确要求“自动选择模型/是否联网/路由判断”，可传 `routingMode: "auto"`，让插件按请求选择 DeepSeek review、Gemini grounded 或 Gemini 多模态 profile。
 
 默认 `groundingMode: "off"`。只有当用户意图需要新鲜或外部信息，例如今天、最新、当前天气、新闻、价格、实时、搜索、联网、在线等，才使用 `groundingMode: "google_search"`。联网必须使用 Gemini 自身的 Google Search grounding，不能由 Codex 先搜索。
 
-当用户要求外部模型检查截图、图片、照片、本地图片或 URL 图片时，使用 `imageInputs`。插件支持给 Gemini 传本地路径和图片 URL。不要描述未被外部模型看到的图片。
+当用户要求外部模型检查截图、图片、照片、本地图片或 URL 图片时，新调用优先使用 `mediaInputs`，旧调用可继续使用 `imageInputs`。当用户提供音频、视频、PDF 或其他文档时，必须使用 `mediaInputs` 并选择 Gemini；DeepSeek 当前不支持这些多模态输入。不要描述未被外部模型看到的材料。
 
 ## 普通调用
 
@@ -43,14 +43,14 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 
 按模型体现使用方式：
 
-- 用户说 Gemini：使用默认 Gemini profile（`gemini-3.1-flash-lite`）；联网或图片场景优先 Gemini。
+- 用户说 Gemini：使用默认 Gemini profile（`gemini-3.1-flash-lite`）；联网或多模态场景优先 Gemini。
 - 用户说 Gemini 高质量、强推理、复杂评估或升级模型：使用 `profileName: "gemini-upgrade"`；联网高质量场景使用 `profileName: "gemini-grounded-upgrade"`。
 - 用户说 DeepSeek：使用 `profileName: "deepseek-default"`；该 profile 默认启用 DeepSeek thinking。
 - 用户说 DeepSeek Pro、强推理、高质量评审：使用 `profileName: "deepseek-pro"`；该 profile 也启用 DeepSeek thinking。
 - 用户说自动选择模型、自动判断是否联网、路由判断：使用 `routingMode: "auto"`。
 - 用户只说外部模型但没有指定模型：保持默认 profile，不主动切换，除非用户要求自动路由。
 
-如果用户明确要求 DeepSeek，优先使用 `profileName: "deepseek-default"`；高质量或 reasoning 场景可使用 `profileName: "deepseek-pro"`。如果用户要求联网搜索或图片理解，DeepSeek 不支持 Gemini Google Search grounding 和 `imageInputs`，应改用支持该能力的 Gemini profile。自动路由时，复杂审查会从 `deepseek-default` 升级到 `deepseek-pro`，复杂联网或图片场景会从 Gemini 默认 profile 升级到 Gemini upgrade profile。
+如果用户明确要求 DeepSeek，优先使用 `profileName: "deepseek-default"`；高质量或 reasoning 场景可使用 `profileName: "deepseek-pro"`。如果用户要求联网搜索、图片理解、音频、视频或文档理解，DeepSeek 不支持 Gemini Google Search grounding 和 `mediaInputs`，应改用支持该能力的 Gemini profile。自动路由时，复杂审查会从 `deepseek-default` 升级到 `deepseek-pro`，复杂联网或多模态场景会从 Gemini 默认 profile 升级到 Gemini upgrade profile。
 
 当前会话未直接暴露 `call_model` MCP tool 时，使用本地包装脚本，不要手动 import `callModel()`：
 

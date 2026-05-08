@@ -8,6 +8,49 @@
 - 不记录 API key、secret 明文、用户级敏感文件内容或包含敏感信息的日志。
 - 每条记录包含提交、变更范围、主要内容、验证结果和部署影响。
 
+## 2026-05-09
+
+### 本次提交：Add Gemini multimodal media inputs
+
+变更范围：
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `ROADMAP.zh-CN.md`
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/.codex-plugin/plugin.json`
+- `plugins/Codex-Llmcaller/scripts/provider-registry.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
+
+主要内容：
+- 将需求目标重新排序，明确后续按统一多模态输入层、File API 大文件上传、能力表与自动路由、意图解析、输出 executor、生图、音频输出、Function Calling 安全执行和全项目审计的顺序推进。
+- 新增 `mediaInputs` 调用参数，兼容旧 `imageInputs`，支持给 Gemini 传文本补充、图片、音频、视频、PDF/文档、本地路径、URL 和预上传 Gemini `fileUri`。
+- `routingMode: "auto"` 遇到 `mediaInputs` 或旧 `imageInputs` 时会选择 Gemini profile，避免音频、视频或文档输入落到 DeepSeek 等非多模态 provider。
+- `provider_capabilities` 增加 Gemini 的 `audio`、`video`、`documents` 能力标记，并明确 DeepSeek、Anthropic、OpenAI-compatible 默认不支持这些多模态输入。
+- `profile_set` 和 profile 存储支持 `maxMediaInputs`、`maxMediaBytes`，用于限制多模态输入数量和 inline 文件大小。
+- 测试覆盖 `mediaInputs` 正常组装、自动路由、provider 限制、`rawContents` 冲突、数量超限和缺少 `fileUri` 的错误边界。
+- 补充中文文档、测试用例、skill 和插件元数据中的多模态使用说明；旧图片输入继续兼容，但新用法优先推荐 `mediaInputs`。
+- 顺手移除模型 footer 生成函数中的重复不可达 return，保持输出 footer 逻辑单一路径。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件在 Git 触碰时会从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新的 MCP schema、skill 和插件元数据。
+- 已安装用户不需要手动改 `config.json`；如需调整多模态输入限制，可在 profile 中配置 `maxMediaInputs` 和 `maxMediaBytes`。
+- 当前节点尚未实现自动 Gemini File API 上传；大文件需要先由外部流程上传后传入 `fileUri`，自动上传在后续节点开发。
+
 ## 2026-05-08
 
 ### 本次提交：Expand agent safety and workflow rules

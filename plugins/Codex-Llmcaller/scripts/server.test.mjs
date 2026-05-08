@@ -358,6 +358,7 @@ async function testDelegationDefaultsDoNotGround() {
       routingMode: "profile",
       outputMode: "full",
       imageCount: 0,
+      mediaCount: 0,
       strictDelegation: true,
       codexPreprocessedFacts: false
     });
@@ -496,6 +497,123 @@ async function testGeminiImageInputs() {
   }
 }
 
+async function testGeminiMediaInputs() {
+  resetSecretStore();
+  const audioPath = resolve(testDir, "sample.wav");
+  const audioBytes = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+  writeFileSync(audioPath, audioBytes);
+
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "media response" }]
+            },
+            finishReason: "STOP"
+          }
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 2,
+          totalTokenCount: 6
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "google",
+      model: "gemini-3.1-flash-lite",
+      apiKey: TEST_SECRET,
+      prompt: "Analyze the attached media.",
+      mediaInputs: [
+        { type: "text", text: "Supplemental note." },
+        { type: "audio", path: audioPath },
+        { type: "document", fileUri: "files/test-pdf", mimeType: "application/pdf" }
+      ]
+    });
+
+    const parts = captured.body.contents[0].parts;
+    assert.equal(result.text, "media response");
+    assert.equal(result.delegation.mediaCount, 3);
+    assert.equal(result.delegation.imageCount, 0);
+    assert.equal(parts[0].text, "Supplemental note.");
+    assert.equal(parts[1].inline_data.mime_type, "audio/wav");
+    assert.equal(parts[1].inline_data.data, audioBytes.toString("base64"));
+    assert.deepEqual(parts[2].file_data, {
+      mime_type: "application/pdf",
+      file_uri: "files/test-pdf"
+    });
+    assert.equal(parts[3].text, "Analyze the attached media.");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function testAutoRoutingSelectsGeminiForMediaInputs() {
+  resetSecretStore();
+  process.env.GEMINI_API_KEY = TEST_SECRET;
+  const audioPath = resolve(testDir, "auto-route.wav");
+  const audioBytes = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+  writeFileSync(audioPath, audioBytes);
+
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "auto media response" }]
+            },
+            finishReason: "STOP"
+          }
+        ]
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      routingMode: "auto",
+      prompt: "Summarize this audio clip.",
+      mediaInputs: [
+        { type: "audio", path: audioPath }
+      ]
+    });
+
+    assert(captured.url.endsWith("/models/gemini-3.1-flash-lite:generateContent"));
+    assert.equal(captured.body.contents[0].parts[0].inline_data.mime_type, "audio/wav");
+    assert.equal(captured.body.contents[0].parts[0].inline_data.data, audioBytes.toString("base64"));
+    assert.equal(result.profileName, "gemini-default");
+    assert.equal(result.delegation.routingMode, "auto");
+    assert.equal(result.delegation.mediaCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.GEMINI_API_KEY;
+  }
+}
+
 async function testProfileDefaults() {
   resetSecretStore();
   process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
@@ -534,7 +652,7 @@ async function testProfileDefaults() {
     assert.equal(configResult.structuredContent.defaultProfile, "gemini-default");
     assert.equal(existsSync(testConfigPath), false, "config_get should not write the default config file");
 
-    await handleToolCall({
+    const profileResult = await handleToolCall({
       name: "profile_set",
       arguments: {
         name: "test-default",
@@ -542,10 +660,14 @@ async function testProfileDefaults() {
         model: "gemini-profile",
         apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         thinkingLevel: "low",
+        maxMediaInputs: 12,
+        maxMediaBytes: 123456,
         timeoutMs: 30000,
         setDefault: true
       }
     });
+    assert.equal(profileResult.structuredContent.profile.maxMediaInputs, 12);
+    assert.equal(profileResult.structuredContent.profile.maxMediaBytes, 123456);
 
     const defaultResult = await callModel({
       prompt: "hello from default profile"
@@ -987,7 +1109,11 @@ async function testProviderCapabilitiesTool() {
   });
 
   assert.equal(result.structuredContent.capabilities.google.images, true);
+  assert.equal(result.structuredContent.capabilities.google.audio, true);
+  assert.equal(result.structuredContent.capabilities.google.video, true);
+  assert.equal(result.structuredContent.capabilities.google.documents, true);
   assert.equal(result.structuredContent.capabilities.deepseek.thinkingMode, true);
+  assert.equal(result.structuredContent.capabilities.deepseek.audio, false);
   assert.equal(result.structuredContent.capabilities.anthropic.googleSearchGrounding, false);
 }
 
@@ -1794,7 +1920,23 @@ async function testFailureScenarios() {
         }
       ]
     }),
-    /imageInputs are currently supported only for provider 'google'/
+    /imageInputs and mediaInputs are currently supported only for provider 'google'/
+  );
+  await assert.rejects(
+    () => callModel({
+      provider: "openai-compatible",
+      model: "test-model",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      mediaInputs: [
+        {
+          type: "audio",
+          fileUri: "files/test-audio",
+          mimeType: "audio/wav"
+        }
+      ]
+    }),
+    /imageInputs and mediaInputs are currently supported only for provider 'google'/
   );
   await assert.rejects(
     () => callModel({
@@ -1813,6 +1955,65 @@ async function testFailureScenarios() {
       ]
     }),
     /at most 1 image/
+  );
+  await assert.rejects(
+    () => callModel({
+      provider: "google",
+      model: "gemini-3.1-flash-lite",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      rawContents: [
+        {
+          role: "user",
+          parts: [{ text: "hello" }]
+        }
+      ],
+      mediaInputs: [
+        {
+          type: "document",
+          fileUri: "files/test-pdf",
+          mimeType: "application/pdf"
+        }
+      ]
+    }),
+    /cannot be combined with rawContents/
+  );
+  await assert.rejects(
+    () => callModel({
+      provider: "google",
+      model: "gemini-3.1-flash-lite",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      maxMediaInputs: 1,
+      mediaInputs: [
+        {
+          type: "text",
+          text: "one"
+        },
+        {
+          type: "text",
+          text: "two"
+        }
+      ]
+    }),
+    /at most 1 item/
+  );
+  await assert.rejects(
+    () => callModel({
+      provider: "google",
+      model: "gemini-3.1-flash-lite",
+      apiKey: TEST_SECRET,
+      prompt: "hello",
+      mediaInputs: [
+        {
+          type: "document",
+          path: "missing.pdf",
+          transfer: "file_uri",
+          mimeType: "application/pdf"
+        }
+      ]
+    }),
+    /requires fileUri/
   );
   await assert.rejects(
     () => handleToolCall({
@@ -1865,6 +2066,7 @@ try {
   await testDelegationDefaultsDoNotGround();
   await testGroundingAutoSwitchAndPromptIntegrity();
   await testGeminiImageInputs();
+  await testGeminiMediaInputs();
   await testProfileDefaults();
   await testGeminiAutoContinue();
   await testVisibleMetaFooter();
@@ -1877,6 +2079,7 @@ try {
   await testDeepSeekEnvPriority();
   await testAutoRoutingSelectsDeepSeekForContextReview();
   await testAutoRoutingUpgradesDeepSeekForComplexContextReview();
+  await testAutoRoutingSelectsGeminiForMediaInputs();
   await testAutoRoutingEnablesGroundingForFreshRequests();
   await testAutoRoutingUpgradesGeminiForComplexFreshRequests();
   await testOutputPreviewAndFileModes();

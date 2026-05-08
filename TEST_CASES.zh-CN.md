@@ -315,3 +315,20 @@ node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
 ```powershell
 node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
 ```
+
+## 13. Gemini 多模态输入回归
+
+`server.test.mjs` 已覆盖：
+
+- 旧 `imageInputs` 继续可用，并会被转换为 Gemini `inline_data`。
+- 新 `mediaInputs` 支持文本补充、音频本地文件和预上传 `fileUri` 文档。
+- `mediaInputs` 与 `rawContents` 不能混用，避免生成冲突的 Gemini contents。
+- 非 Google provider 使用 `imageInputs` 或 `mediaInputs` 会返回明确错误。
+- `routingMode: "auto"` 遇到音频、视频、文档等多模态输入时，会自动选择 Gemini profile。
+- `provider_capabilities` 中 Gemini 标记支持 `images`、`audio`、`video`、`documents`，DeepSeek 对这些能力标记为不支持。
+
+执行：
+
+```powershell
+node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
+```

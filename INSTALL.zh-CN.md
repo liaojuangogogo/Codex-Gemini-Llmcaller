@@ -176,7 +176,7 @@ Git 引用：refs/heads/main
 用 DeepSeek 检查一下这个回答。
 ```
 
-需要联网或图片时使用 Gemini：
+需要联网或多模态输入时使用 Gemini：
 
 ```text
 用 Gemini 联网查询今天的公开信息后回答。

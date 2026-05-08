@@ -1,6 +1,6 @@
 # Codex-Llmcaller
 
-`Codex-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini、DeepSeek 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过初始化参数或本地配置文件接入多模型、自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
+`Codex-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini、DeepSeek 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过初始化参数或本地配置文件接入多模型、自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和多模态输入。
 
 ## 快速安装
 
@@ -63,11 +63,12 @@ DeepSeek 高质量核对：
 让插件自动选择合适模型，检查上面的回答是否合理。
 ```
 
-联网或图片场景应使用 Gemini：
+联网或多模态场景应使用 Gemini：
 
 ```text
 用 Gemini 联网查询今天的公开信息后回答。
 用 Gemini 看这张截图并指出问题。
+用 Gemini 分析这段音频并给出摘要。
 ```
 
 把插件添加到会话后，也可以用 mention 方式调用：
