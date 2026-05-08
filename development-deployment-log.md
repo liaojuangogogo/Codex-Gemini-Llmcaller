@@ -10,6 +10,34 @@
 
 ## 2026-05-08
 
+### 本次提交：Expand agent safety and workflow rules
+
+变更范围：
+- `AGENTS.md`
+- `development-deployment-log.md`
+
+主要内容：
+- 在 `AGENTS.md` 中补充防爆半径与权限沙盒规则，明确仓库边界、用户级目录写入限制、不可逆操作的人类确认要求和凭证红线。
+- 增加确定性与外部依赖隔离要求，明确核心逻辑开发优先使用 Mock Provider、固定响应和离线测试，不把真实 LLM API 作为单元测试前置条件。
+- 增加智能体架构关注点分离规则，要求统一入口、路由层只做决策、专业化 Agent/执行器能力原子化、工具执行走 allowlist 和参数校验。
+- 增加数据抽象与脱敏过滤规则，要求材料识别层、无害化测试夹具、RAG/知识库脱敏和日志敏感信息裁剪。
+- 完善状态机式迭代工作流，强调“阅读现状 -> 明确小目标 -> 最小化修改 -> 验证 -> 回看”、节点级验收、测试配套和最终变更总结。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件在 Git 触碰时会从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+- 仅项目工作规则和开发记录变更；不影响运行时插件代码。
+- 不需要重新运行 `setup.mjs` 或重启 Codex Desktop，除非需要把仓库中的规则文档同步到本地安装副本。
+
 ### 本次提交：Clarify first-time installation docs
 
 变更范围：
