@@ -2,6 +2,8 @@ export const DEFAULT_TIMEOUT_MS = 120000;
 export const DEFAULT_PROVIDER_ID = "gemini";
 export const DEFAULT_PROFILE_NAME = "gemini-default";
 export const GROUNDED_PROFILE_NAME = "gemini-grounded";
+export const GEMINI_UPGRADE_PROFILE_NAME = "gemini-upgrade";
+export const GEMINI_GROUNDED_UPGRADE_PROFILE_NAME = "gemini-grounded-upgrade";
 
 export const PROVIDER_SPECS = {
   gemini: {
@@ -27,6 +29,16 @@ export const PROVIDER_SPECS = {
       "gemini-default": {
         providerId: "gemini",
         provider: "google",
+        model: "gemini-3.1-flash-lite",
+        secretName: "gemini-default",
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        thinkingLevel: "low",
+        autoContinue: true,
+        maxContinuationRounds: 2
+      },
+      "gemini-upgrade": {
+        providerId: "gemini",
+        provider: "google",
         model: "gemini-3-flash-preview",
         secretName: "gemini-default",
         timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -37,13 +49,23 @@ export const PROVIDER_SPECS = {
       "gemini-grounded": {
         providerId: "gemini",
         provider: "google",
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         secretName: "gemini-default",
         timeoutMs: DEFAULT_TIMEOUT_MS,
         autoContinue: true,
         maxContinuationRounds: 2,
         groundingMode: "google_search",
-        fallbackProfiles: ["gemini-grounded-lite", "gemini-grounded-20-flash"]
+        fallbackProfiles: ["gemini-grounded-upgrade", "gemini-grounded-lite", "gemini-grounded-20-flash"]
+      },
+      "gemini-grounded-upgrade": {
+        providerId: "gemini",
+        provider: "google",
+        model: "gemini-3-flash-preview",
+        secretName: "gemini-default",
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        autoContinue: true,
+        maxContinuationRounds: 2,
+        groundingMode: "google_search"
       },
       "gemini-grounded-lite": {
         providerId: "gemini",

@@ -85,7 +85,7 @@ Options:
   --refresh-secrets                 Re-enter or re-import provider API keys even when decryptable secrets already exist.
   --skip-api-validate               Skip the lightweight provider API validation calls after initialization.
   --install-only                     Install/register the plugin without initializing secrets or profiles.
-  --model gemini-3-flash-preview     Legacy Gemini model override for the default profile.
+  --model gemini-3.1-flash-lite      Legacy Gemini model override for the default profile.
   --profile gemini-default           Legacy Gemini secret/profile name override.
   --plugin-target-dir <path>         Override the user-level plugin install directory.
   --marketplace-path <path>          Override the user-level marketplace path.

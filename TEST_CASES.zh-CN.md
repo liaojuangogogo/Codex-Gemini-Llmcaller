@@ -238,20 +238,17 @@ node ./setup.mjs --providers gemini,deepseek
 
 ```text
 本地仓库方式：
-来源：E:\Git\Codex-Llmcaller
+来源：本项目仓库根目录
 Git 引用：（留空）
-稀疏路径：.agents/plugins
+稀疏路径：（留空）
 
 GitHub 方式：
 来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
-稀疏路径：.agents/plugins
-
-本地兜底方式：
-来源：E:\Git\Codex-Llmcaller\.agents\plugins
-Git 引用：（留空）
 稀疏路径：（留空）
 ```
+
+预期：不要只稀疏加载 `.agents/plugins`。客户端需要同时拿到 marketplace 文件和 `plugins/Codex-Llmcaller` 插件包，否则可能出现插件卡片可见但安装按钮置灰。
 
 预期：添加市场成功后，插件源列表出现 `Codex-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Llmcaller`。界面添加市场不会录入 API key；真实调用前仍需要完成 `setup.mjs` 初始化。
 
@@ -282,7 +279,7 @@ Git 引用：（留空）
 
 - 错误信息明确说明这是 Gemini Google Search grounding 配额/速率限制。
 - 如果 profile 配置了 `fallbackProfiles`，插件继续尝试 fallback。
-- 内置联网 fallback 顺序为 `gemini-2.5-flash`、`gemini-2.5-flash-lite`、`gemini-2.0-flash`。
+- 内置联网 fallback 顺序为 `gemini-grounded`、`gemini-grounded-upgrade`、`gemini-grounded-lite`、`gemini-grounded-20-flash`。
 - 如果全部 fallback 都失败，返回可读错误，不由 Codex 冒充 Gemini 回答。
 
 ## 11. DeepSeek 模拟回归

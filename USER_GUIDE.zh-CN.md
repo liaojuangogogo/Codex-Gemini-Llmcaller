@@ -22,15 +22,15 @@
 用 Gemini 联网查询今天的公开信息后回答。
 ```
 
-如果需要联网，插件会自动使用 `gemini-grounded` profile。内置联网降级顺序是：
+如果需要联网，插件会自动使用 `gemini-grounded` profile。需要更强模型时可升级到 `gemini-grounded-upgrade`。内置联网 fallback 顺序是：
 
 ```text
-gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
+gemini-grounded(gemini-3.1-flash-lite) -> gemini-grounded-upgrade(gemini-3-flash-preview) -> gemini-grounded-lite(gemini-2.5-flash-lite) -> gemini-grounded-20-flash(gemini-2.0-flash)
 ```
 
-这样避免把 `gemini-3-flash-preview` 作为默认联网模型，降低 preview 模型在 Search grounding 场景下触发 429 的概率。
+这样默认使用较轻的 Gemini profile，并在用户明确需要更强推理、复杂审查或高质量评估时升级模型。
 
-联网内置 profile 不带 `thinkingLevel`。部分 Gemini 2.5 Flash grounding 调用不支持 `thinkingConfig.thinkingLevel`，保留该字段会导致 `Thinking level is not supported for this model`。
+联网内置 profile 不带 `thinkingLevel`。如果旧配置里残留 `thinkingConfig.thinkingLevel`，部分 Gemini grounding 调用可能返回 `Thinking level is not supported for this model`，插件会在加载内置联网 profile 时移除该字段。
 
 ### 1.2 DeepSeek
 
@@ -78,17 +78,17 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 
 ```text
 本地仓库：
-来源：E:\Git\Codex-Llmcaller
+来源：本项目仓库根目录
 Git 引用：（留空）
-稀疏路径：.agents/plugins
+稀疏路径：（留空）
 
 GitHub：
 来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
-稀疏路径：.agents/plugins
+稀疏路径：（留空）
 ```
 
-如果本地仓库方式失败，再用 `E:\Git\Codex-Llmcaller\.agents\plugins` 作为来源，并把稀疏路径留空。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
+不要只稀疏加载 `.agents/plugins`。否则客户端可能只能读到 marketplace 条目，却找不到实际插件包，表现为插件卡片可见但安装按钮置灰。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
 
 ## 2. 多模型初始化
 
@@ -152,7 +152,7 @@ $HOME/plugins/Codex-Llmcaller/.data/config.json
   "profiles": {
     "gemini-default": {
       "provider": "google",
-      "model": "gemini-3-flash-preview",
+      "model": "gemini-3.1-flash-lite",
       "secretName": "gemini-default",
       "timeoutMs": 120000,
       "thinkingLevel": "low",
@@ -175,7 +175,7 @@ $HOME/plugins/Codex-Llmcaller/.data/config.json
   "profiles": {
     "gemini-review": {
       "provider": "google",
-      "model": "gemini-3-flash-preview",
+      "model": "gemini-3.1-flash-lite",
       "secretName": "gemini-default",
       "timeoutMs": 180000,
       "maxTokens": 4096,
@@ -255,7 +255,7 @@ profile 不允许保存 `Authorization`、`x-api-key`、`x-goog-api-key`、`api-
 
 ```text
 ---
-模型: google / gemini-3-flash-preview
+模型: google / gemini-3.1-flash-lite
 Profile: gemini-default
 Tokens: input=12, output=34, total=46
 ```
@@ -298,10 +298,16 @@ HTTP 429 RESOURCE_EXHAUSTED
 {
   "gemini-grounded": {
     "provider": "google",
-    "model": "gemini-2.5-flash",
+    "model": "gemini-3.1-flash-lite",
     "secretName": "gemini-default",
     "groundingMode": "google_search",
-    "fallbackProfiles": ["gemini-grounded-lite", "gemini-grounded-20-flash"]
+    "fallbackProfiles": ["gemini-grounded-upgrade", "gemini-grounded-lite", "gemini-grounded-20-flash"]
+  },
+  "gemini-grounded-upgrade": {
+    "provider": "google",
+    "model": "gemini-3-flash-preview",
+    "secretName": "gemini-default",
+    "groundingMode": "google_search"
   },
   "gemini-grounded-lite": {
     "provider": "google",

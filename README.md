@@ -108,18 +108,18 @@ DeepSeek 高质量核对：
 
 如果新版 Codex Desktop 没有自动显示本地插件源，可以点击“管理”旁的“创建”菜单，选择添加插件市场：
 
-- 本地仓库方式：来源填 `E:\Git\Codex-Llmcaller`，Git 引用留空，稀疏路径填 `.agents/plugins`。
-- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径填 `.agents/plugins`。
+- 本地仓库方式：来源选择本项目仓库根目录，Git 引用留空，稀疏路径留空。
+- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径留空。
 
-如果本地仓库方式提示添加失败，再把来源改为 `E:\Git\Codex-Llmcaller\.agents\plugins`，稀疏路径留空。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
+不要只稀疏加载 `.agents/plugins`，否则客户端可能只能读到 marketplace 条目，却找不到 `plugins/Codex-Llmcaller` 插件包，导致安装按钮置灰。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
 
-如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-grounded`、`deepseek-default`、`deepseek-pro`。
+如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-upgrade`、`gemini-grounded`、`gemini-grounded-upgrade`、`deepseek-default`、`deepseek-pro`。
 
 ## 联网与降级
 
 普通问题默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding，而不是由 Codex 先查资料。
 
-联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。如果联网调用返回 `HTTP 429 RESOURCE_EXHAUSTED`，通常是 Search grounding 配额或速率限制，插件会返回明确错误并尝试配置的 fallback。
+联网 profile 默认使用 `gemini-3.1-flash-lite`。需要更强模型时可升级到 `gemini-3-flash-preview`，联网 fallback 顺序为 `gemini-grounded`、`gemini-grounded-upgrade`、`gemini-grounded-lite`、`gemini-grounded-20-flash`。如果联网调用返回 `HTTP 429 RESOURCE_EXHAUSTED`，通常是 Search grounding 配额或速率限制，插件会返回明确错误并尝试配置的 fallback。
 
 ## DeepSeek
 

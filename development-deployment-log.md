@@ -10,6 +10,46 @@
 
 ## 2026-05-08
 
+### 本次提交：Update Gemini defaults and marketplace install docs
+
+变更范围：
+- `setup.mjs`
+- `AGENTS.md`
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/scripts/provider-registry.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
+
+主要内容：
+- 将 Gemini 默认 profile 调整为 `gemini-3.1-flash-lite`，新增 `gemini-upgrade` profile 指向 `gemini-3-flash-preview`。
+- 将 Gemini 联网默认 profile 调整为 `gemini-3.1-flash-lite`，新增 `gemini-grounded-upgrade`，联网 fallback 顺序调整为 `gemini-grounded`、`gemini-grounded-upgrade`、`gemini-grounded-lite`、`gemini-grounded-20-flash`。
+- 自动路由增加升级判断：复杂、高质量、强推理、严格审查、架构/安全/风险等请求会优先升级到 Gemini upgrade 或 DeepSeek Pro；普通核对仍优先走 `deepseek-default`。
+- 保留旧 `gemini-grounded` 配置迁移：旧联网 profile 中的 `gemini-3-flash-preview` 或 `gemini-2.5-flash` 会在运行时规范化为新的 `gemini-3.1-flash-lite`，同时移除联网 profile 中不兼容的 thinking 配置。
+- 修正 Codex Desktop 新版手动添加插件市场说明：本地仓库和 GitHub 方式都要求稀疏路径留空；文档不再暴露个人绝对路径，并说明只稀疏加载 `.agents/plugins` 会导致插件卡片可见但安装按钮置灰。
+- 更新 skill、README、安装指南、用户指南和测试用例中的模型版本、升级/降级逻辑和插件市场安装说明。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+node .\setup.mjs --help
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件在 Git 触碰时会从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新的插件代码、profile 默认值和 skill 文档。
+- 已存在的用户级 `config.json` 不需要手动编辑；运行时会对内置 Gemini 联网 profile 做兼容迁移。
+- 如果通过 Codex Desktop 手动添加插件市场，应使用仓库根目录或 GitHub 仓库地址，并保持稀疏路径为空。
+
 ### 本次提交：Rename project to Codex-Llmcaller
 
 变更范围：
@@ -51,7 +91,7 @@ git diff --check
 - 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --default-profile <profile> --yes` 并完全重启 Codex Desktop。
 - 已安装旧插件的用户数据会复制迁移到 `$HOME/plugins/Codex-Llmcaller/.data/`；旧目录不会被删除。
 - GitHub 仓库本体已通过 GitHub CLI 从 `Codex-Gemini-Llmcaller` 重命名为 `Codex-Llmcaller`，本地 `origin` 已更新为 `git@github.com:liaojuangogogo/Codex-Llmcaller.git`。
-- 当前会话尝试把本地 checkout 根目录从 `E:\Git\Codex-Gemini-Llmcaller` 移动到 `E:\Git\Codex-Llmcaller`，但 Windows 返回目录正被进程占用；目标目录未创建。需要关闭占用该目录的终端、编辑器或 Codex 会话后再执行本地目录重命名。
+- 当前会话尝试重命名本地 checkout 根目录时，Windows 返回目录正被进程占用；需要关闭占用该目录的终端、编辑器或 Codex 会话后再执行本地目录重命名。
 
 ### 本次提交：Enable DeepSeek thinking by default
 

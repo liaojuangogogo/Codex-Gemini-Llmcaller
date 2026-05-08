@@ -413,7 +413,7 @@ async function testGroundingAutoSwitchAndPromptIntegrity() {
     });
 
     assert.equal(result.text, "grounded response");
-    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert(captured.url.endsWith("/models/gemini-3.1-flash-lite:generateContent"));
     assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
     assert.equal(captured.body.generationConfig?.thinkingConfig, undefined);
     assert.equal(captured.body.contents[0].parts[0].text, prompt);
@@ -1002,6 +1002,11 @@ async function testProviderRegistryProfileMetadata() {
   assert.equal(configResult.structuredContent.profiles["deepseek-default"].baseUrl, "https://api.deepseek.com");
   assert.equal(configResult.structuredContent.profiles["deepseek-default"].thinkingMode, "enabled");
   assert.equal(configResult.structuredContent.profiles["deepseek-default"].reasoningEffort, "high");
+  assert.equal(configResult.structuredContent.profiles["gemini-default"].model, "gemini-3.1-flash-lite");
+  assert.equal(configResult.structuredContent.profiles["gemini-upgrade"].model, "gemini-3-flash-preview");
+  assert.equal(configResult.structuredContent.profiles["gemini-grounded"].model, "gemini-3.1-flash-lite");
+  assert.equal(configResult.structuredContent.profiles["gemini-grounded-upgrade"].model, "gemini-3-flash-preview");
+  assert.deepEqual(configResult.structuredContent.profiles["gemini-grounded"].fallbackProfiles, ["gemini-grounded-upgrade", "gemini-grounded-lite", "gemini-grounded-20-flash"]);
 
   const profileResult = await handleToolCall({
     name: "profile_set",
@@ -1145,6 +1150,72 @@ async function testAutoRoutingSelectsDeepSeekForContextReview() {
   }
 }
 
+async function testAutoRoutingUpgradesDeepSeekForComplexContextReview() {
+  resetSecretStore();
+  process.env.DEEPSEEK_API_KEY = "deepseek-env-key";
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: "needs_fix",
+                severity: "medium",
+                confidence: 0.8,
+                issues: [],
+                missing_context: "",
+                suggested_correction: "",
+                need_full_review: true
+              })
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 2,
+          completion_tokens: 3,
+          total_tokens: 5
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      routingMode: "auto",
+      executionMode: "review",
+      inputSource: "context",
+      messages: [
+        {
+          role: "user",
+          content: "请做一次高质量严格代码审查，重点检查复杂架构风险。"
+        }
+      ]
+    });
+
+    assert.equal(captured.url, "https://api.deepseek.com/chat/completions");
+    assert.equal(captured.body.model, "deepseek-v4-pro");
+    assert.deepEqual(captured.body.thinking, { type: "enabled" });
+    assert.equal(captured.body.reasoning_effort, "high");
+    assert.equal(result.profileName, "deepseek-pro");
+    assert.equal(result.delegation.routingMode, "auto");
+    assert.equal(result.route.capabilityKey, "deepseek");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.DEEPSEEK_API_KEY;
+  }
+}
+
 async function testExistingDeepSeekDefaultMigratesToThinkingMode() {
   resetSecretStore();
   writeFileSync(testConfigPath, JSON.stringify({
@@ -1211,9 +1282,60 @@ async function testAutoRoutingEnablesGroundingForFreshRequests() {
       prompt: "请查询今天深圳天气，只输出摘要。"
     });
 
-    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert(captured.url.endsWith("/models/gemini-3.1-flash-lite:generateContent"));
     assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
     assert.equal(result.profileName, "gemini-grounded");
+    assert.equal(result.delegation.groundingMode, "google_search");
+    assert.equal(result.delegation.routingMode, "auto");
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.GEMINI_API_KEY;
+  }
+}
+
+async function testAutoRoutingUpgradesGeminiForComplexFreshRequests() {
+  resetSecretStore();
+  process.env.GEMINI_API_KEY = TEST_SECRET;
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "grounded upgrade ok" }]
+            },
+            finishReason: "STOP"
+          }
+        ],
+        usageMetadata: {
+          promptTokenCount: 1,
+          candidatesTokenCount: 1,
+          totalTokenCount: 2
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      routingMode: "auto",
+      prompt: "请联网搜索今天深圳天气，并做高质量风险提示。"
+    });
+
+    assert(captured.url.endsWith("/models/gemini-3-flash-preview:generateContent"));
+    assert.deepEqual(captured.body.tools, [{ google_search: {} }]);
+    assert.equal(captured.body.generationConfig?.thinkingConfig, undefined);
+    assert.equal(result.profileName, "gemini-grounded-upgrade");
     assert.equal(result.delegation.groundingMode, "google_search");
     assert.equal(result.delegation.routingMode, "auto");
   } finally {
@@ -1427,7 +1549,7 @@ async function testExistingGroundedProfileMigratesOffPreviewModel() {
     });
 
     assert.equal(result.text, "migrated grounded response");
-    assert(captured.url.endsWith("/models/gemini-2.5-flash:generateContent"));
+    assert(captured.url.endsWith("/models/gemini-3.1-flash-lite:generateContent"));
     assert.equal(captured.body.generationConfig?.thinkingConfig, undefined);
     assert.equal(result.profileName, "gemini-grounded");
   } finally {
@@ -1754,7 +1876,9 @@ try {
   await testProviderRegistryProfileMetadata();
   await testDeepSeekEnvPriority();
   await testAutoRoutingSelectsDeepSeekForContextReview();
+  await testAutoRoutingUpgradesDeepSeekForComplexContextReview();
   await testAutoRoutingEnablesGroundingForFreshRequests();
+  await testAutoRoutingUpgradesGeminiForComplexFreshRequests();
   await testOutputPreviewAndFileModes();
   await testInvalidConfigFallback();
   await testExistingDeepSeekDefaultMigratesToThinkingMode();

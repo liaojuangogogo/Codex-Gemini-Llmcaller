@@ -12,6 +12,8 @@ import {
   BUILT_IN_PROFILES,
   DEFAULT_PROFILE_NAME,
   DEFAULT_TIMEOUT_MS,
+  GEMINI_GROUNDED_UPGRADE_PROFILE_NAME,
+  GEMINI_UPGRADE_PROFILE_NAME,
   GROUNDED_PROFILE_NAME,
   PROVIDER_PRESETS,
   envNamesForCall,
@@ -81,7 +83,7 @@ const tools = [
         },
         model: {
           type: "string",
-          description: "Provider model id, for example deepseek-v4-flash, deepseek-v4-pro, or gemini-3-flash-preview."
+          description: "Provider model id, for example deepseek-v4-flash, deepseek-v4-pro, gemini-3.1-flash-lite, or gemini-3-flash-preview."
         },
         prompt: {
           type: "string",
@@ -1673,6 +1675,9 @@ function shouldAutoSwitchToGroundedProfile(args, explicitArgs) {
   if (args.groundingMode !== "google_search") {
     return false;
   }
+  if (args.routingMode === "auto") {
+    return false;
+  }
 
   return !explicitArgs.profileName &&
     !explicitArgs.provider &&
@@ -1684,14 +1689,27 @@ function selectAutoProfileName(config, explicitArgs) {
   if (hasProviderOverride(explicitArgs)) {
     return config.defaultProfile;
   }
+  const shouldUpgrade = shouldAutoUpgrade(explicitArgs);
   if (explicitArgs.groundingMode === "google_search" || shouldAutoGround(explicitArgs)) {
+    if (shouldUpgrade && isProfileCallable(config.profiles[GEMINI_GROUNDED_UPGRADE_PROFILE_NAME])) {
+      return GEMINI_GROUNDED_UPGRADE_PROFILE_NAME;
+    }
     return normalizeProfileName(config.groundedProfileName ?? GROUNDED_PROFILE_NAME);
   }
   if (hasImageInputs(explicitArgs)) {
+    if (shouldUpgrade && isProfileCallable(config.profiles[GEMINI_UPGRADE_PROFILE_NAME])) {
+      return GEMINI_UPGRADE_PROFILE_NAME;
+    }
     return config.profiles[DEFAULT_PROFILE_NAME] ? DEFAULT_PROFILE_NAME : config.defaultProfile;
+  }
+  if (explicitArgs.executionMode === "review" && explicitArgs.inputSource === "context" && shouldUpgrade && isProfileCallable(config.profiles["deepseek-pro"])) {
+    return "deepseek-pro";
   }
   if (explicitArgs.executionMode === "review" && explicitArgs.inputSource === "context" && isProfileCallable(config.profiles["deepseek-default"])) {
     return "deepseek-default";
+  }
+  if (shouldUpgrade && isProfileCallable(config.profiles[GEMINI_UPGRADE_PROFILE_NAME])) {
+    return GEMINI_UPGRADE_PROFILE_NAME;
   }
 
   return config.defaultProfile;
@@ -1724,6 +1742,15 @@ function shouldAutoGround(args) {
   }
 
   return /今天|今日|现在|当前|最新|新闻|天气|价格|股价|汇率|搜索|联网|实时|today|current|latest|news|weather|price|search|online|real[-\s]?time/.test(text);
+}
+
+function shouldAutoUpgrade(args) {
+  const text = modelRequestText(args).toLowerCase();
+  if (!text) {
+    return false;
+  }
+
+  return /升级模型|更强模型|高质量|强推理|深度|复杂|架构|安全|代码审查|完整审查|详细评估|严格|风险|多步骤|疑难|复杂方案|复杂代码|high[-\s]?quality|strong[-\s]?reasoning|deep|complex|architecture|security|code review|comprehensive|strict|risk|multi[-\s]?step|hard problem|upgrade model/.test(text);
 }
 
 function modelRequestText(args) {
@@ -1848,7 +1875,7 @@ function cloneBuiltInProfiles() {
 function normalizeBuiltInProfiles(profiles) {
   for (const [name, defaults] of Object.entries(BUILT_IN_PROFILES)) {
     profiles[name] = name.startsWith("gemini-grounded")
-      ? normalizeBuiltInGroundedProfile(profiles[name], defaults)
+      ? normalizeBuiltInGroundedProfile(name, profiles[name], defaults)
       : normalizeBuiltInProfile(name, profiles[name], defaults);
   }
 }
@@ -1870,7 +1897,7 @@ function normalizeBuiltInProfile(name, profile, defaults) {
   return merged;
 }
 
-function normalizeBuiltInGroundedProfile(profile, defaults) {
+function normalizeBuiltInGroundedProfile(name, profile, defaults) {
   const merged = {
     ...defaults,
     ...profile,
@@ -1880,7 +1907,7 @@ function normalizeBuiltInGroundedProfile(profile, defaults) {
     groundingMode: "google_search"
   };
 
-  if (merged.model === "gemini-3-flash-preview") {
+  if (name === GROUNDED_PROFILE_NAME && (merged.model === "gemini-3-flash-preview" || merged.model === "gemini-2.5-flash")) {
     merged.model = defaults.model;
   }
 
@@ -2570,7 +2597,7 @@ function formatHttpErrorMessage(response, detail, callArgs = {}) {
     return [
       base,
       "Gemini Google Search grounding returned 429 RESOURCE_EXHAUSTED. This usually means the API key or Google Cloud project hit a Search grounding quota/rate limit, not that local API key decryption failed.",
-      "Recommended actions: wait for quota recovery, reduce grounded calls, check AI Studio/Google Cloud billing and quota, or switch the grounded profile to gemini-2.5-flash / gemini-2.5-flash-lite / gemini-2.0-flash."
+      "Recommended actions: wait for quota recovery, reduce grounded calls, check AI Studio/Google Cloud billing and quota, or switch the grounded profile among gemini-3.1-flash-lite / gemini-3-flash-preview / gemini-2.5-flash-lite / gemini-2.0-flash."
     ].join("\n");
   }
 

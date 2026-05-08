@@ -130,9 +130,9 @@ node ./setup.mjs --providers gemini,deepseek
 本地仓库方式：
 
 ```text
-来源：E:\Git\Codex-Llmcaller
+来源：本项目仓库根目录
 Git 引用：（留空）
-稀疏路径：.agents/plugins
+稀疏路径：（留空）
 ```
 
 GitHub 方式：
@@ -140,16 +140,10 @@ GitHub 方式：
 ```text
 来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
-稀疏路径：.agents/plugins
-```
-
-如果本地仓库方式提示“添加插件市场失败”，改用 marketplace 目录作为来源：
-
-```text
-来源：E:\Git\Codex-Llmcaller\.agents\plugins
-Git 引用：（留空）
 稀疏路径：（留空）
 ```
+
+不要只稀疏加载 `.agents/plugins`。本项目的 marketplace 条目会引用 `plugins/Codex-Llmcaller` 插件包；如果只加载 marketplace 目录，客户端可能显示插件卡片但无法解析插件包，安装按钮会置灰。
 
 界面方式只负责让 Codex Desktop 发现插件市场。API key、profile 和本地加密 secret 仍由 `setup.mjs` 初始化；不要在界面、聊天或命令行参数中粘贴真实 API key。
 
@@ -189,7 +183,7 @@ DeepSeek：
 
 如果初始化时设置了 `--default-profile deepseek-default`，不明确指定模型时默认会使用 `deepseek-default`。也可以在调用时明确说使用 Gemini、DeepSeek，或通过 `profileName` 指定。
 
-普通请求默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding；Codex 不会先查资料再喂给 Gemini。内置联网 profile 默认使用 `gemini-2.5-flash`，并可降级到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。
+普通请求默认不联网。涉及“今天、最新、天气、新闻、价格、联网、搜索、实时”等信息时，插件会让 Gemini 使用 Google Search grounding；Codex 不会先查资料再喂给 Gemini。内置联网 profile 默认使用 `gemini-3.1-flash-lite`，需要更强模型时可升级到 `gemini-3-flash-preview`，并可继续 fallback 到 `gemini-2.5-flash-lite`、`gemini-2.0-flash`。
 
 图片输入目前由 Gemini 支持；DeepSeek 内置 profile 不支持图片输入或 Google Search grounding。
 
