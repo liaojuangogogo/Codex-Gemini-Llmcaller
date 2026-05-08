@@ -89,15 +89,23 @@ DeepSeek 高质量核对：
 
 在 Codex 的插件页把插件添加到会话后也可使用：
 
-1. 左侧进入“插件”。
-2. 顶部选择“插件”页签。
-3. 在插件源下拉中选择本地插件源，例如 `Codex-Gemini-Llmcaller Local Plugins`。
-4. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
-5. 在会话中试用或添加到当前会话，然后说：
+1. 先运行 `node ./setup.mjs --providers gemini,deepseek`，完成安装、API key 录入和 marketplace 注册。
+2. 完全重启 Codex Desktop。
+3. 左侧进入“插件”，顶部选择“插件”页签。
+4. 在插件源下拉中选择本地插件源，例如 `Codex-Gemini-Llmcaller Local Plugins`。
+5. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+6. 在会话中试用或添加到当前会话，然后说：
 
 ```text
 @Codex-Gemini-Llmcaller 检查上面的回答。
 ```
+
+如果新版 Codex Desktop 没有自动显示本地插件源，可以点击“管理”旁的“创建”菜单，选择添加插件市场：
+
+- 本地仓库方式：来源填 `E:\Git\Codex-Gemini-Llmcaller`，Git 引用留空，稀疏路径填 `.agents/plugins`。
+- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径填 `.agents/plugins`。
+
+如果本地仓库方式提示添加失败，再把来源改为 `E:\Git\Codex-Gemini-Llmcaller\.agents\plugins`，稀疏路径留空。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
 
 如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-grounded`、`deepseek-default`、`deepseek-pro`。
 

@@ -205,17 +205,44 @@ DeepSeek Pro：
 
 插件页添加方式：
 
-1. 左侧进入“插件”。
-2. 顶部选择“插件”页签。
-3. 插件源下拉选择 `Codex-Gemini-Llmcaller Local Plugins`。
-4. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
-5. 在会话中说：
+1. 先执行初始化并完全重启 Codex Desktop：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+2. 左侧进入“插件”。
+3. 顶部选择“插件”页签。
+4. 插件源下拉选择 `Codex-Gemini-Llmcaller Local Plugins`。
+5. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+6. 在会话中说：
 
 ```text
 @Codex-Gemini-Llmcaller 检查上面的回答。
 ```
 
 预期：插件可在当前会话中调用，不需要手动 import `server.mjs`。
+
+新版 Codex Desktop 手动添加插件市场：
+
+```text
+本地仓库方式：
+来源：E:\Git\Codex-Gemini-Llmcaller
+Git 引用：（留空）
+稀疏路径：.agents/plugins
+
+GitHub 方式：
+来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+Git 引用：refs/heads/main
+稀疏路径：.agents/plugins
+
+本地兜底方式：
+来源：E:\Git\Codex-Gemini-Llmcaller\.agents\plugins
+Git 引用：（留空）
+稀疏路径：（留空）
+```
+
+预期：添加市场成功后，插件源列表出现 `Codex-Gemini-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Gemini-Llmcaller`。界面添加市场不会录入 API key；真实调用前仍需要完成 `setup.mjs` 初始化。
 
 ## 9. 兜底调用 footer 验证
 

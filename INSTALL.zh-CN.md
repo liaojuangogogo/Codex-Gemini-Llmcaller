@@ -92,7 +92,13 @@ node ./setup.mjs --providers gemini,deepseek --refresh-secrets
 
 ## 4. 在插件页添加到会话
 
-如果你希望按界面方式添加插件：
+推荐先用初始化脚本完成本地安装、API key 录入和 marketplace 注册：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek
+```
+
+完成后完全重启 Codex Desktop。如果插件源已经出现：
 
 1. 打开 Codex Desktop。
 2. 左侧点击“插件”。
@@ -107,6 +113,39 @@ node ./setup.mjs --providers gemini,deepseek --refresh-secrets
 ```text
 @Codex-Gemini-Llmcaller 检查上面的回答。
 ```
+
+如果新版 Codex Desktop 没有自动显示本地插件源，可以手动添加插件市场：
+
+1. 在插件页点击右上角“管理”旁的“创建”菜单。
+2. 选择“添加插件市场”。
+3. 按以下任一方式填写。
+4. 点击“添加市场”，等待插件市场出现在插件源列表中。
+
+本地仓库方式：
+
+```text
+来源：E:\Git\Codex-Gemini-Llmcaller
+Git 引用：（留空）
+稀疏路径：.agents/plugins
+```
+
+GitHub 方式：
+
+```text
+来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+Git 引用：refs/heads/main
+稀疏路径：.agents/plugins
+```
+
+如果本地仓库方式提示“添加插件市场失败”，改用 marketplace 目录作为来源：
+
+```text
+来源：E:\Git\Codex-Gemini-Llmcaller\.agents\plugins
+Git 引用：（留空）
+稀疏路径：（留空）
+```
+
+界面方式只负责让 Codex Desktop 发现插件市场。API key、profile 和本地加密 secret 仍由 `setup.mjs` 初始化；不要在界面、聊天或命令行参数中粘贴真实 API key。
 
 ## 5. 直接使用
 

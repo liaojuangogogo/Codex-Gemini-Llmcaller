@@ -66,11 +66,29 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 
 插件页添加方式：
 
-1. 左侧进入“插件”。
-2. 顶部选择“插件”页签。
-3. 在插件源下拉中选择 `Codex-Gemini-Llmcaller Local Plugins`。
-4. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
-5. 选择“在对话中试用”或添加到当前会话。
+1. 先运行 `node ./setup.mjs --providers gemini,deepseek`，完成本机安装、API key 录入和 marketplace 注册。
+2. 完全重启 Codex Desktop。
+3. 左侧进入“插件”。
+4. 顶部选择“插件”页签。
+5. 在插件源下拉中选择 `Codex-Gemini-Llmcaller Local Plugins`。
+6. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+7. 选择“在对话中试用”或添加到当前会话。
+
+如果插件源没有出现，可以在插件页右上角通过“创建”菜单添加插件市场：
+
+```text
+本地仓库：
+来源：E:\Git\Codex-Gemini-Llmcaller
+Git 引用：（留空）
+稀疏路径：.agents/plugins
+
+GitHub：
+来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+Git 引用：refs/heads/main
+稀疏路径：.agents/plugins
+```
+
+如果本地仓库方式失败，再用 `E:\Git\Codex-Gemini-Llmcaller\.agents\plugins` 作为来源，并把稀疏路径留空。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
 
 ## 2. 多模型初始化
 

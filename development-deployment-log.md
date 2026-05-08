@@ -10,6 +10,39 @@
 
 ## 2026-05-08
 
+### 本次提交：Document Codex Desktop marketplace add flow
+
+变更范围：
+
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+
+主要内容：
+
+- 补充新版 Codex Desktop 通过“添加插件市场”接入本项目的说明，覆盖本地仓库、GitHub 仓库和本地 marketplace 目录兜底三种填写方式。
+- 明确界面添加插件市场只负责让客户端发现插件，API key、profile 和本地加密 secret 仍必须通过 `setup.mjs` 初始化。
+- 在测试用例中增加插件市场添加后的预期：插件源列表出现 `Codex-Gemini-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Gemini-Llmcaller`。
+- 用模拟外部模型输出验证低回流模式：9000 字符长输出在 `preview` 模式回流 1242 字符，约节省 86.2%；`file` 模式回流 1373 字符，约节省 84.7%；紧凑 JSON review 回流 231 字符，约节省 97.4%。
+
+验证结果：
+
+```powershell
+node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分文档工作区换行会在 Git 触碰时从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+
+- 仅文档变更；已安装用户如果只查看文档不需要重新运行 `setup.mjs`。
+- 如果要让 Codex Desktop 使用当前仓库版本，仍需要运行 `node .\setup.mjs --providers gemini,deepseek` 并完全重启 Codex Desktop。
+
 ### 本次提交：Hardening review fixes
 
 变更范围：
