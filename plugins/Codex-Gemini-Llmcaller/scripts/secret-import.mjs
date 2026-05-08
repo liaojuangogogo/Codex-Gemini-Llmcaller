@@ -190,7 +190,6 @@ async function main() {
 
   console.log(`Stored encrypted secret '${result.structuredContent.secret.name}'.`);
   console.log(`Fingerprint: ${result.structuredContent.secret.fingerprint}`);
-  console.log(`Key preview: ${result.structuredContent.secret.keyPreview}`);
 }
 
 main().catch((error) => {

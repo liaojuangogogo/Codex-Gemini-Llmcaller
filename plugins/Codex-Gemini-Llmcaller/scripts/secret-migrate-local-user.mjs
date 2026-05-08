@@ -105,7 +105,6 @@ async function main() {
   const result = migrateSecretToLocalUser(args.name, masterKey);
   console.log(`Migrated encrypted secret '${result.name}' to local-user protection.`);
   console.log(`Fingerprint: ${result.fingerprint}`);
-  console.log(`Key preview: ${result.keyPreview}`);
 }
 
 main().catch((error) => {

@@ -686,6 +686,26 @@ async function main() {
       console.log(`Initialized ${providerPlan.spec.displayName} profiles: ${Object.keys(providerPlan.profiles).join(", ")}`);
     }
 
+    if (options.defaultProfile && !providerPlans.some((plan) => Object.prototype.hasOwnProperty.call(plan.profiles, options.defaultProfile))) {
+      await server.handleToolCall({
+        name: "config_set_default_profile",
+        arguments: {
+          profileName: options.defaultProfile
+        }
+      });
+    }
+  } else {
+    console.log("Install-only mode: skipped secret and profile initialization.");
+  }
+
+  writeMarketplace(options);
+  const cacheCleared = clearPluginCache();
+
+  if (cacheCleared) {
+    console.log(`Cleared old Codex plugin cache: ${defaultPluginCacheDir()}`);
+  }
+
+  if (!options.installOnly) {
     if (options.validateApis) {
       const validationFailures = [];
 
@@ -706,7 +726,7 @@ async function main() {
           .map((failure) => `- ${failure.providerName} (${failure.profileName}): ${failure.message}`)
           .join("\n");
         throw new Error([
-          "Provider API validation failed. The plugin files, profiles, and encrypted secrets were written, but at least one provider cannot complete a real API call.",
+          "Provider API validation failed. The plugin files, marketplace entry, profiles, encrypted secrets, and plugin cache cleanup were completed, but at least one provider cannot complete a real API call.",
           details,
           "Fix the provider API key, billing/quota, model permission, or network access, then rerun setup with --refresh-secrets or --api-key-env. Use --skip-api-validate only when you intentionally want to skip live validation."
         ].join("\n"));
@@ -714,24 +734,6 @@ async function main() {
     } else {
       console.log("Skipped provider API validation because --skip-api-validate was set.");
     }
-
-    if (options.defaultProfile && !providerPlans.some((plan) => Object.prototype.hasOwnProperty.call(plan.profiles, options.defaultProfile))) {
-      await server.handleToolCall({
-        name: "config_set_default_profile",
-        arguments: {
-          profileName: options.defaultProfile
-        }
-      });
-    }
-  } else {
-    console.log("Install-only mode: skipped secret and profile initialization.");
-  }
-
-  writeMarketplace(options);
-  const cacheCleared = clearPluginCache();
-
-  if (cacheCleared) {
-    console.log(`Cleared old Codex plugin cache: ${defaultPluginCacheDir()}`);
   }
 
   console.log("初始化完成。");

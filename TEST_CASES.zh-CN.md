@@ -123,9 +123,7 @@ node ./setup.mjs
 ## 6. 非交互安装
 
 ```powershell
-$env:GEMINI_API_KEY="你的本地key"
 node ./setup.mjs --api-key-env GEMINI_API_KEY --yes
-Remove-Item Env:\GEMINI_API_KEY
 ```
 
 预期：
@@ -137,11 +135,7 @@ Remove-Item Env:\GEMINI_API_KEY
 多模型非交互安装：
 
 ```powershell
-$env:GEMINI_API_KEY="你的本地key"
-$env:DEEPSEEK_API_KEY="你的本地key"
 node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
-Remove-Item Env:\GEMINI_API_KEY
-Remove-Item Env:\DEEPSEEK_API_KEY
 ```
 
 预期：

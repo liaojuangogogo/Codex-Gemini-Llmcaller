@@ -95,14 +95,18 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 非交互模式可以只传环境变量名，不要把 API key 作为命令行参数：
 
 ```powershell
-$env:GEMINI_API_KEY="你的本地 Gemini key"
-$env:DEEPSEEK_API_KEY="你的本地 DeepSeek key"
 node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
-Remove-Item Env:\GEMINI_API_KEY
-Remove-Item Env:\DEEPSEEK_API_KEY
 ```
 
 初始化逻辑会按 provider 检查对应 secret 是否已存在且可解密；如果已存在，默认会跳过该 provider 的 API key 输入。要替换旧 key，使用 `--refresh-secrets`。脚本默认会在写入 profile 后对每个 provider 做一次轻量真实 API 验证，确认 key、权限、余额/配额、模型和网络链路可用。只有离线安装或明确不希望产生真实调用时，才使用 `--skip-api-validate`。`--install-only` 只安装插件和注册 marketplace，不初始化 secret 或 profile，也不做 API 验证。
+
+自动化环境可以提前由系统注入 `GEMINI_API_KEY`、`DEEPSEEK_API_KEY`。日常本地刷新 key 时，优先直接运行交互式命令，由脚本隐藏录入：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+不要在 PowerShell 历史里写入真实 API key。
 
 ## 3. 本地配置文件
 

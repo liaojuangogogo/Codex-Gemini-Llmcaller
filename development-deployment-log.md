@@ -10,6 +10,44 @@
 
 ## 2026-05-08
 
+### 本次提交：Hardening review fixes
+
+变更范围：
+
+- `.gitignore`
+- `setup.mjs`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs`
+
+主要内容：
+
+- 安装流程调整为先写入 marketplace 并清理 Codex 插件缓存，再执行 provider API 验证；如果验证失败，安装和注册状态仍可解释，用户只需要修复 key、权限、配额或网络后重新运行初始化。
+- 移除新写入 secret 记录中的 `keyPreview`，`secret_get`、`secret_list`、`secret-import.mjs` 和 `secret-migrate-local-user.mjs` 不再输出 API key 片段，只保留 fingerprint。
+- 增强 release-check：根 `.gitignore` 必须忽略 `**/.data/` 和 `*.bak`，发布检查会拦截 `.data`、`secrets.json`、`config.json`、`marketplace.json.bak` 等敏感或生成文件。
+- 文档中的本地环境变量示例不再写 `$env:GEMINI_API_KEY="..."`，避免用户把真实 key 留在 PowerShell 历史；本地刷新 key 推荐使用交互式隐藏录入。
+
+验证结果：
+
+```powershell
+node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。
+
+部署影响：
+
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --refresh-secrets` 并完全重启 Codex Desktop，才能安装新版脚本和更严格的 secret 输出行为。
+
 ### 本次提交：Backfill development deployment log
 
 变更范围：

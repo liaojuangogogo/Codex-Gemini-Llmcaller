@@ -83,9 +83,11 @@ async function testSecretEncryption() {
 
   assert.equal(setResult.structuredContent.stored, true);
   assert.equal(setResult.structuredContent.secret.name, "gemini-default");
+  assert.equal(setResult.structuredContent.secret.keyPreview, undefined);
   assert(!JSON.stringify(setResult).includes(TEST_SECRET), "secret_set must not return plaintext key");
   assert(existsSync(testSecretsPath), "secret store should be created");
   assert(!readFileSync(testSecretsPath, "utf8").includes(TEST_SECRET), "secret store must not contain plaintext key");
+  assert(!readFileSync(testSecretsPath, "utf8").includes("AIza...alue"), "secret store must not contain plaintext key previews");
 
   const getResult = await handleToolCall({
     name: "secret_get",
@@ -96,6 +98,7 @@ async function testSecretEncryption() {
   });
 
   assert.equal(getResult.structuredContent.canDecrypt, true);
+  assert.equal(getResult.structuredContent.keyPreview, undefined);
   assert(!JSON.stringify(getResult).includes(TEST_SECRET), "secret_get must not return plaintext key");
   await assert.rejects(
     () => handleToolCall({

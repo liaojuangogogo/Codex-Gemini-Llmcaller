@@ -71,22 +71,24 @@ node ./setup.mjs --install-only --yes
 如果希望从本地环境变量读取 API key：
 
 ```powershell
-$env:GEMINI_API_KEY="你的本地key"
 node ./setup.mjs --api-key-env GEMINI_API_KEY --yes
-Remove-Item Env:\GEMINI_API_KEY
 ```
 
 多模型非交互初始化可以按 provider 指定环境变量名：
 
 ```powershell
-$env:GEMINI_API_KEY="你的本地 Gemini key"
-$env:DEEPSEEK_API_KEY="你的本地 DeepSeek key"
 node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
-Remove-Item Env:\GEMINI_API_KEY
-Remove-Item Env:\DEEPSEEK_API_KEY
 ```
 
 `--refresh-secrets` 会覆盖已有同名 secret，适合修复旧 key 可解密但实际不可用的情况。不要把 API key 作为命令行参数传入，也不要粘贴到会话中。
+
+自动化环境可以提前由系统注入 `GEMINI_API_KEY`、`DEEPSEEK_API_KEY`。日常本地刷新 key 时，优先直接运行交互式命令，由脚本隐藏录入：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+不要在 PowerShell 历史里写入真实 API key。
 
 ## 4. 在插件页添加到会话
 

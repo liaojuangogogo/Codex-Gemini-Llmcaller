@@ -88,6 +88,12 @@ function assertRootTmpIgnored() {
   if (!/^\.tmp\/?$/mu.test(content)) {
     throw new Error(".gitignore must ignore .tmp/.");
   }
+  if (!/^\*\*\/\.data\/?$/mu.test(content)) {
+    throw new Error(".gitignore must ignore **/.data/.");
+  }
+  if (!/^\*\.bak$/mu.test(content)) {
+    throw new Error(".gitignore must ignore *.bak.");
+  }
 }
 
 function assertDirectoryHasNoFiles(directory, label) {
@@ -116,6 +122,42 @@ function walkAllFiles(root) {
   return files;
 }
 
+function walkRepoFilesIncludingData(root) {
+  const files = [];
+
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === ".git" || entry.name === "node_modules") {
+      continue;
+    }
+
+    const fullPath = join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkRepoFilesIncludingData(fullPath));
+    } else if (entry.isFile()) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
+
+function assertNoSensitiveTrackedPaths() {
+  const files = walkRepoFilesIncludingData(REPO_ROOT);
+  const sensitiveFiles = files.filter((file) => {
+    const relativePath = relative(REPO_ROOT, file).replace(/\\/g, "/");
+    const parts = relativePath.split("/");
+
+    return parts.includes(".data") ||
+      relativePath.endsWith("/secrets.json") ||
+      relativePath.endsWith("/config.json") ||
+      relativePath.endsWith("/marketplace.json.bak");
+  });
+
+  if (sensitiveFiles.length) {
+    throw new Error(`Repository contains generated or sensitive files that must not be uploaded:\n${sensitiveFiles.map((file) => relative(REPO_ROOT, file)).join("\n")}`);
+  }
+}
+
 try {
   const files = [
     ...walkFiles(PLUGIN_ROOT),
@@ -133,7 +175,9 @@ try {
 
   assertDataIgnored();
   assertRootTmpIgnored();
+  assertNoSensitiveTrackedPaths();
   assertDirectoryHasNoFiles(join(REPO_ROOT, ".tmp"), ".tmp/");
+  assertDirectoryHasNoFiles(join(REPO_ROOT, ".data"), ".data/");
   assertDirectoryHasNoFiles(join(PLUGIN_ROOT, ".data"), "plugins/Codex-Gemini-Llmcaller/.data/");
   const findings = scanForbiddenPaths(files);
   if (findings.length) {

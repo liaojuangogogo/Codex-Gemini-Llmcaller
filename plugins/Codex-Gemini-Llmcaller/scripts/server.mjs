@@ -2074,7 +2074,6 @@ function handleSecretSet(args) {
     baseUrl: optionalTrimmedString(args.baseUrl),
     model: optionalTrimmedString(args.model),
     fingerprint: fingerprintSecret(apiKey),
-    keyPreview: maskSecret(apiKey),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     encrypted
@@ -2130,8 +2129,7 @@ function handleSecretGet(args) {
   const apiKey = decryptSecretRecord(record, resolveMasterKeyForRecord(args, record), name);
   const result = {
     ...publicSecretRecord(record),
-    canDecrypt: true,
-    keyPreview: maskSecret(apiKey)
+    canDecrypt: true
   };
 
   return textResult(JSON.stringify(result, null, 2), result);
@@ -2414,7 +2412,6 @@ function publicSecretRecord(record) {
     baseUrl: record.baseUrl,
     model: record.model,
     fingerprint: record.fingerprint,
-    keyPreview: record.keyPreview,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     protection: record.encrypted?.protection ?? "passphrase",
@@ -2473,18 +2470,6 @@ function runDpapiPowerShell(mode, input) {
   }
 
   return String(result.stdout).replace(/\r?\n$/, "");
-}
-
-function maskSecret(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (value.length <= 8) {
-    return `${value.slice(0, 1)}...${value.slice(-1)}`;
-  }
-
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
 function fingerprintSecret(value) {
