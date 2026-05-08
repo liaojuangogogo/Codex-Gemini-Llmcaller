@@ -4,61 +4,38 @@
 
 ## 快速安装
 
-克隆仓库后，在仓库根目录运行：
+第一次使用建议按下面顺序操作。
+
+1. 准备 Node.js 18+、Windows PowerShell、Codex Desktop，以及需要使用的 provider API key。
+2. 完全退出 Codex Desktop。
+3. 在本项目仓库根目录打开 PowerShell。
+4. 运行环境检查：
+
+```powershell
+node ./setup.mjs --check-only
+```
+
+5. 初始化插件和 API key。
+
+只使用 Gemini：
 
 ```powershell
 node ./setup.mjs
 ```
 
-初始化脚本会检查 Node.js、Windows PowerShell 和目标目录写入权限，默认隐藏录入 Gemini API key，将插件安装到当前用户的 Codex 插件目录，写入用户级 marketplace，并且只保存加密后的 secret。
-
-如果要同时初始化 Gemini 和 DeepSeek：
+同时使用 Gemini 和 DeepSeek：
 
 ```powershell
 node ./setup.mjs --providers gemini,deepseek
 ```
 
-初始化会按 `--providers` 的顺序逐个隐藏录入 API key，写入本地加密 secret 后立即用每个 provider 的默认 profile 做一次轻量真实调用验证。这样可以在安装阶段发现 key 复制错误、权限不足、余额/配额不足或模型不可用等问题。
+脚本会隐藏录入 API key，把插件安装到用户级插件目录，写入 marketplace，只保存加密后的 secret，并做一次轻量真实 API 验证。
 
-如果已有 secret 但需要替换旧 key：
+6. 完全重启 Codex Desktop。
+7. 在“插件”页选择 `Codex-Llmcaller Local Plugins`，找到 `Codex-Llmcaller`，点击 `+` 添加到会话。
+8. 如果插件源没有出现，手动添加插件市场：来源选择本项目仓库根目录或 `https://github.com/liaojuangogogo/Codex-Llmcaller`，Git 引用本地留空、GitHub 填 `refs/heads/main`，稀疏路径留空。
 
-```powershell
-node ./setup.mjs --providers gemini,deepseek --refresh-secrets
-```
-
-如果要用本地环境变量导入多个 provider 的 key，避免 key 出现在命令行参数中：
-
-```powershell
-node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
-```
-
-只有在离线安装、代理未配置或明确不想产生验证调用时，才使用：
-
-```powershell
-node ./setup.mjs --providers gemini,deepseek --skip-api-validate
-```
-
-如果只初始化 DeepSeek 并设为默认 profile：
-
-```powershell
-node ./setup.mjs --providers deepseek --default-profile deepseek-default
-```
-
-如果同时初始化多个 provider，也可以显式指定全局默认 profile：
-
-```powershell
-node ./setup.mjs --providers gemini,deepseek --default-profile deepseek-default
-```
-
-环境要求：
-
-- Windows
-- Node.js 18 或更高版本
-- Windows PowerShell
-- Codex Desktop
-- Codex Desktop 已对本地项目/插件目录授权“完全访问权限”
-
-如果没有完全访问权限，客户端可能无法读取用户级插件目录、启动 MCP server 或访问本地加密配置。
+不要只稀疏加载 `.agents/plugins`，否则客户端可能只读到 marketplace 条目，却找不到实际插件包，导致安装按钮置灰。完整步骤见 [安装指南](./INSTALL.zh-CN.md)。
 
 ## 使用方式
 
@@ -93,25 +70,11 @@ DeepSeek 高质量核对：
 用 Gemini 看这张截图并指出问题。
 ```
 
-在 Codex 的插件页把插件添加到会话后也可使用：
-
-1. 先运行 `node ./setup.mjs --providers gemini,deepseek`，完成安装、API key 录入和 marketplace 注册。
-2. 完全重启 Codex Desktop。
-3. 左侧进入“插件”，顶部选择“插件”页签。
-4. 在插件源下拉中选择本地插件源，例如 `Codex-Llmcaller Local Plugins`。
-5. 找到 `Codex-Llmcaller`，点击 `+`。
-6. 在会话中试用或添加到当前会话，然后说：
+把插件添加到会话后，也可以用 mention 方式调用：
 
 ```text
 @Codex-Llmcaller 检查上面的回答。
 ```
-
-如果新版 Codex Desktop 没有自动显示本地插件源，可以点击“管理”旁的“创建”菜单，选择添加插件市场：
-
-- 本地仓库方式：来源选择本项目仓库根目录，Git 引用留空，稀疏路径留空。
-- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径留空。
-
-不要只稀疏加载 `.agents/plugins`，否则客户端可能只能读到 marketplace 条目，却找不到 `plugins/Codex-Llmcaller` 插件包，导致安装按钮置灰。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
 
 如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-upgrade`、`gemini-grounded`、`gemini-grounded-upgrade`、`deepseek-default`、`deepseek-pro`。
 

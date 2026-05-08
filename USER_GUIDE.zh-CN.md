@@ -2,6 +2,24 @@
 
 `Codex-Llmcaller` 用于在 Codex 会话中调用 Gemini 或其他 API-key 模型。普通用户安装一次后即可直接使用；高级用户通过本地 `config.json` 配置模型、超时、token、自动续写、fallback 和输出元信息。
 
+## 首次安装
+
+第一次使用时按这个顺序操作：
+
+1. 准备 Node.js 18+、Windows PowerShell、Codex Desktop，以及需要使用的 Gemini 或 DeepSeek API key。
+2. 完全退出 Codex Desktop。
+3. 在本项目仓库根目录打开 PowerShell。
+4. 运行 `node ./setup.mjs --check-only` 检查环境。
+5. 只使用 Gemini 时运行 `node ./setup.mjs`；同时使用 Gemini 和 DeepSeek 时运行 `node ./setup.mjs --providers gemini,deepseek`。
+6. 按脚本提示隐藏录入 API key。脚本只保存本地加密 secret，不会把明文 key 写入仓库。
+7. 等待脚本完成插件安装、marketplace 注册和轻量 API 验证。
+8. 完全重启 Codex Desktop。
+9. 在“插件”页选择 `Codex-Llmcaller Local Plugins`，找到 `Codex-Llmcaller`，点击 `+` 添加到会话。
+
+如果插件源没有出现，手动添加插件市场：来源选择本项目仓库根目录或 `https://github.com/liaojuangogogo/Codex-Llmcaller`，GitHub 方式的 Git 引用填 `refs/heads/main`，稀疏路径留空。不要只稀疏加载 `.agents/plugins`，否则可能出现插件卡片可见但安装按钮置灰。
+
+详细安装、非交互初始化和故障排查见 `INSTALL.zh-CN.md`。
+
 ## 1. 按模型使用
 
 安装并重启 Codex Desktop 后，可以按模型表达意图。
@@ -64,31 +82,7 @@ gemini-grounded(gemini-3.1-flash-lite) -> gemini-grounded-upgrade(gemini-3-flash
 @Codex-Llmcaller 检查上面的回答。
 ```
 
-插件页添加方式：
-
-1. 先运行 `node ./setup.mjs --providers gemini,deepseek`，完成本机安装、API key 录入和 marketplace 注册。
-2. 完全重启 Codex Desktop。
-3. 左侧进入“插件”。
-4. 顶部选择“插件”页签。
-5. 在插件源下拉中选择 `Codex-Llmcaller Local Plugins`。
-6. 找到 `Codex-Llmcaller`，点击 `+`。
-7. 选择“在对话中试用”或添加到当前会话。
-
-如果插件源没有出现，可以在插件页右上角通过“创建”菜单添加插件市场：
-
-```text
-本地仓库：
-来源：本项目仓库根目录
-Git 引用：（留空）
-稀疏路径：（留空）
-
-GitHub：
-来源：https://github.com/liaojuangogogo/Codex-Llmcaller
-Git 引用：refs/heads/main
-稀疏路径：（留空）
-```
-
-不要只稀疏加载 `.agents/plugins`。否则客户端可能只能读到 marketplace 条目，却找不到实际插件包，表现为插件卡片可见但安装按钮置灰。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
+插件页添加方式见本文开头“首次安装”。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
 
 ## 2. 多模型初始化
 

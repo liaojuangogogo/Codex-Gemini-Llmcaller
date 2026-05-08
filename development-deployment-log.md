@@ -10,6 +10,36 @@
 
 ## 2026-05-08
 
+### 本次提交：Clarify first-time installation docs
+
+变更范围：
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `development-deployment-log.md`
+
+主要内容：
+- 将安装指南改为面向第一次使用的逐步流程：准备环境、退出 Codex Desktop、进入仓库根目录、运行环境检查、初始化 API key、重启客户端、添加插件到会话、验证调用、故障排查。
+- README 的快速安装改为精简的一次性安装步骤，并将详细说明导向 `INSTALL.zh-CN.md`。
+- 用户文档新增“首次安装”入口，减少后续使用章节里的重复安装说明。
+- 继续明确手动添加插件市场时稀疏路径应留空，并说明只加载 `.agents/plugins` 会导致插件卡片可见但安装按钮置灰。
+- 文档继续避免暴露本机绝对路径和 API key 明文。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件在 Git 触碰时会从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+- 仅文档变更；如果只查看文档，不需要重新运行 `setup.mjs`。
+- 如果要让 Codex Desktop 插件缓存中的文档/skill 同步到最新仓库版本，仍需重新运行 `node .\setup.mjs --yes` 并完全重启 Codex Desktop。
+
 ### 本次提交：Update Gemini defaults and marketplace install docs
 
 变更范围：
