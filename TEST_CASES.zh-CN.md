@@ -66,6 +66,29 @@ node ./setup.mjs --providers gemini,deepseek
 - 生成或复用 `gemini-default`、`deepseek-default` secret。
 - 写入 Gemini 与 DeepSeek 内置 profile。
 - 不覆盖已有可解密 secret。
+- 对 `gemini-default` 和 `deepseek-default` 各执行一次轻量真实 API 验证。
+
+强制刷新已有 secret：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+预期：
+
+- 即使已有可解密 secret，也会重新录入或导入对应 provider 的 API key。
+- 刷新后仍会执行轻量真实 API 验证。
+
+跳过真实 API 验证：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --skip-api-validate
+```
+
+预期：
+
+- 完成安装、secret/profile 写入和 marketplace 注册。
+- 不调用 provider API。
 
 只初始化 DeepSeek 并设为默认 profile：
 
@@ -116,7 +139,7 @@ Remove-Item Env:\GEMINI_API_KEY
 ```powershell
 $env:GEMINI_API_KEY="你的本地key"
 $env:DEEPSEEK_API_KEY="你的本地key"
-node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --yes
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
 Remove-Item Env:\GEMINI_API_KEY
 Remove-Item Env:\DEEPSEEK_API_KEY
 ```

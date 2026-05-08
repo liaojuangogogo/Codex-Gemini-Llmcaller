@@ -18,6 +18,26 @@ node ./setup.mjs
 node ./setup.mjs --providers gemini,deepseek
 ```
 
+初始化会按 `--providers` 的顺序逐个隐藏录入 API key，写入本地加密 secret 后立即用每个 provider 的默认 profile 做一次轻量真实调用验证。这样可以在安装阶段发现 key 复制错误、权限不足、余额/配额不足或模型不可用等问题。
+
+如果已有 secret 但需要替换旧 key：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+如果要用本地环境变量导入多个 provider 的 key，避免 key 出现在命令行参数中：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
+```
+
+只有在离线安装、代理未配置或明确不想产生验证调用时，才使用：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --skip-api-validate
+```
+
 如果只初始化 DeepSeek 并设为默认 profile：
 
 ```powershell

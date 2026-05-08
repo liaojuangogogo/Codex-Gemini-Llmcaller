@@ -76,6 +76,8 @@ Options:
   --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY
                                     Read multiple provider API keys from local environment variables.
   --default-profile deepseek-default Set the default profile after initialization.
+  --refresh-secrets                 Re-enter or re-import provider API keys even when decryptable secrets already exist.
+  --skip-api-validate               Skip the lightweight provider API validation calls after initialization.
   --install-only                     Install/register the plugin without initializing secrets or profiles.
   --model gemini-3-flash-preview     Legacy Gemini model override for the default profile.
   --profile gemini-default           Legacy Gemini secret/profile name override.
@@ -140,6 +142,8 @@ function resolveInstallOptions(args) {
     defaultProfile: typeof args.defaultProfile === "string" && args.defaultProfile.trim()
       ? args.defaultProfile.trim()
       : providersExplicit && !providers.includes(DEFAULT_PROVIDER_ID) ? `${providers[0]}-default` : null,
+    refreshSecrets: args.refreshSecrets === true,
+    validateApis: args.skipApiValidate !== true,
     pluginTargetDir: path.resolve(expandTilde(args.pluginTargetDir) || defaultPluginTargetDir()),
     marketplacePath: path.resolve(expandTilde(args.marketplacePath) || defaultMarketplacePath()),
     installOnly: args.installOnly === true,
@@ -468,6 +472,26 @@ async function writeProfiles(server, providerPlan, options) {
   }
 }
 
+async function validateProviderCall(server, providerPlan) {
+  const profileName = providerPlan.primaryProfileName;
+  console.log(`Validating ${providerPlan.spec.displayName} profile '${profileName}' with a lightweight API call...`);
+  await server.handleToolCall({
+    name: "call_model",
+    arguments: {
+      profileName,
+      prompt: "只回复 OK。",
+      executionMode: "raw",
+      inputSource: "direct",
+      groundingMode: "off",
+      strictDelegation: true,
+      outputMetaFooter: false,
+      maxTokens: 16,
+      autoContinue: false
+    }
+  });
+  console.log(`Validated ${providerPlan.spec.displayName} profile '${profileName}'.`);
+}
+
 function buildProviderPlans(options) {
   return options.providerSpecs.map((spec) => {
     const legacyGeminiOverride = spec.id === "gemini" && (options.legacyProfile !== DEFAULT_PROFILE_NAME || options.legacyModel !== PROVIDER_SPECS.gemini.profiles[DEFAULT_PROFILE_NAME].model);
@@ -490,7 +514,10 @@ function buildProviderPlans(options) {
       options.defaultProfile = options.legacyProfile;
     }
 
-    const primaryProfile = profiles[secretName] ?? Object.values(profiles)[0] ?? {};
+    const primaryProfileEntry = Object.entries(profiles).find(([name]) => name === secretName) ??
+      Object.entries(profiles)[0] ??
+      [secretName, {}];
+    const [primaryProfileName, primaryProfile] = primaryProfileEntry;
     const apiKeyEnv = options.apiKeyEnvMap[spec.id] ?? (
       options.defaultApiKeyEnv && (spec.id === DEFAULT_PROVIDER_ID || options.providerSpecs.length === 1) ? options.defaultApiKeyEnv : null
     );
@@ -499,6 +526,7 @@ function buildProviderPlans(options) {
       spec,
       secretName,
       profiles,
+      primaryProfileName,
       primaryModel: primaryProfile.model,
       apiKeyEnv
     };
@@ -642,17 +670,49 @@ async function main() {
 
   if (!options.installOnly) {
     for (const providerPlan of providerPlans) {
-      const canReuseSecret = !providerPlan.apiKeyEnv && await hasDecryptableSecret(server, providerPlan.secretName);
+      const canReuseSecret = !options.refreshSecrets && !providerPlan.apiKeyEnv && await hasDecryptableSecret(server, providerPlan.secretName);
 
       if (canReuseSecret) {
         console.log(`Existing decryptable secret '${providerPlan.secretName}' found; skipping ${providerPlan.spec.displayName} API key input.`);
       } else {
+        if (options.refreshSecrets) {
+          console.log(`Refreshing secret '${providerPlan.secretName}' for ${providerPlan.spec.displayName}.`);
+        }
         const apiKey = await readApiKey(providerPlan);
         await writeSecret(server, providerPlan, apiKey);
       }
 
       await writeProfiles(server, providerPlan, options);
       console.log(`Initialized ${providerPlan.spec.displayName} profiles: ${Object.keys(providerPlan.profiles).join(", ")}`);
+    }
+
+    if (options.validateApis) {
+      const validationFailures = [];
+
+      for (const providerPlan of providerPlans) {
+        try {
+          await validateProviderCall(server, providerPlan);
+        } catch (error) {
+          validationFailures.push({
+            providerName: providerPlan.spec.displayName,
+            profileName: providerPlan.primaryProfileName,
+            message: error?.message || String(error)
+          });
+        }
+      }
+
+      if (validationFailures.length) {
+        const details = validationFailures
+          .map((failure) => `- ${failure.providerName} (${failure.profileName}): ${failure.message}`)
+          .join("\n");
+        throw new Error([
+          "Provider API validation failed. The plugin files, profiles, and encrypted secrets were written, but at least one provider cannot complete a real API call.",
+          details,
+          "Fix the provider API key, billing/quota, model permission, or network access, then rerun setup with --refresh-secrets or --api-key-env. Use --skip-api-validate only when you intentionally want to skip live validation."
+        ].join("\n"));
+      }
+    } else {
+      console.log("Skipped provider API validation because --skip-api-validate was set.");
     }
 
     if (options.defaultProfile && !providerPlans.some((plan) => Object.prototype.hasOwnProperty.call(plan.profiles, options.defaultProfile))) {

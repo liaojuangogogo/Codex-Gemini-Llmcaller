@@ -143,6 +143,16 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 node ./setup.mjs --providers gemini,deepseek
 ```
 
+安装脚本会按 provider 逐个录入或导入 API key，写入本地加密 secret 后默认执行一次轻量真实 API 验证。已有 secret 但需要替换旧 key 时，使用：
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+离线安装或明确不希望产生真实 provider 调用时，才使用：
+```powershell
+node ./setup.mjs --providers gemini,deepseek --skip-api-validate
+```
+
 secret 默认使用 Windows 当前用户保护并本地保存。设置完成后，调用应使用 profile 或 `secretName`；插件会在本地解密。
 
 Gemini 调用默认支持自动续写。如果 Gemini 响应以 `MAX_TOKENS` 结束或接近配置的输出上限，插件会继续请求并合并结果。只有用户明确要求单次原始调用时，才使用 `autoContinue: false`。

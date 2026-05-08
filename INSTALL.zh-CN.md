@@ -35,6 +35,25 @@ node ./setup.mjs
 node ./setup.mjs --providers gemini,deepseek
 ```
 
+脚本会按 provider 顺序分别隐藏录入 key，并写入不同 secret：
+
+- Gemini: `gemini-default`
+- DeepSeek: `deepseek-default`
+
+写入 profile 后，脚本默认会对每个 provider 做一次轻量真实 API 验证。验证请求只要求模型回复 `OK`，用于确认 key、模型、权限、余额/配额和网络链路实际可用。
+
+如果已有 secret 但需要重新录入或替换旧 key：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+如果只想安装或更新文件，不做真实 API 验证：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --skip-api-validate
+```
+
 如果只初始化 DeepSeek 并设为默认 profile：
 
 ```powershell
@@ -62,12 +81,12 @@ Remove-Item Env:\GEMINI_API_KEY
 ```powershell
 $env:GEMINI_API_KEY="你的本地 Gemini key"
 $env:DEEPSEEK_API_KEY="你的本地 DeepSeek key"
-node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --yes
+node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY --refresh-secrets --yes
 Remove-Item Env:\GEMINI_API_KEY
 Remove-Item Env:\DEEPSEEK_API_KEY
 ```
 
-不要把 API key 作为命令行参数传入，也不要粘贴到会话中。
+`--refresh-secrets` 会覆盖已有同名 secret，适合修复旧 key 可解密但实际不可用的情况。不要把 API key 作为命令行参数传入，也不要粘贴到会话中。
 
 ## 4. 在插件页添加到会话
 
@@ -136,6 +155,18 @@ node ./setup.mjs --check-only
 ```
 
 如果提示文件被占用，请完全退出 Codex Desktop 和正在编辑插件目录的编辑器后重试。
+
+如果初始化阶段提示 `Provider API validation failed`，说明插件文件、profile 和加密 secret 已经写入，但至少一个 provider 不能完成真实 API 调用。常见原因是 key 复制错误、key 已失效、模型权限不足、余额/配额不足或网络代理问题。修复 key 后重新运行：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --refresh-secrets
+```
+
+如果只是离线安装或当前网络不能访问 provider，可以临时跳过验证：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --skip-api-validate
+```
 
 如果提示 marketplace JSON 解析失败，脚本会先生成 `marketplace.json.bak`。请手动修复原 JSON 后重新运行：
 
