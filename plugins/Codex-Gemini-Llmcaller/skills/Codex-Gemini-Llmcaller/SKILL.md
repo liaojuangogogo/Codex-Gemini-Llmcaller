@@ -44,8 +44,8 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 按模型体现使用方式：
 
 - 用户说 Gemini：使用默认 Gemini profile；联网或图片场景优先 Gemini。
-- 用户说 DeepSeek：使用 `profileName: "deepseek-default"`。
-- 用户说 DeepSeek Pro、强推理、高质量评审：使用 `profileName: "deepseek-pro"`。
+- 用户说 DeepSeek：使用 `profileName: "deepseek-default"`；该 profile 默认启用 DeepSeek thinking。
+- 用户说 DeepSeek Pro、强推理、高质量评审：使用 `profileName: "deepseek-pro"`；该 profile 也启用 DeepSeek thinking。
 - 用户说自动选择模型、自动判断是否联网、路由判断：使用 `routingMode: "auto"`。
 - 用户只说外部模型但没有指定模型：保持默认 profile，不主动切换，除非用户要求自动路由。
 

@@ -130,8 +130,8 @@ DeepSeek 高质量核对：
 
 内置 profile：
 
-- `deepseek-default`：`deepseek-v4-flash`，关闭 thinking
-- `deepseek-pro`：`deepseek-v4-pro`，启用 thinking
+- `deepseek-default`：`deepseek-v4-flash`，默认启用 thinking，`reasoningEffort: "high"`
+- `deepseek-pro`：`deepseek-v4-pro`，启用 thinking，`reasoningEffort: "high"`
 
 核对 Codex 之前回答时，插件默认使用紧凑的 `outputMode: "json"`，避免外部模型的长评语回流到 Codex 上下文。
 

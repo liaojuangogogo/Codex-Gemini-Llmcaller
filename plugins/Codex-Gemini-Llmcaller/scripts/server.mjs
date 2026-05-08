@@ -1845,18 +1845,25 @@ function normalizeBuiltInProfiles(profiles) {
   for (const [name, defaults] of Object.entries(BUILT_IN_PROFILES)) {
     profiles[name] = name.startsWith("gemini-grounded")
       ? normalizeBuiltInGroundedProfile(profiles[name], defaults)
-      : normalizeBuiltInProfile(profiles[name], defaults);
+      : normalizeBuiltInProfile(name, profiles[name], defaults);
   }
 }
 
-function normalizeBuiltInProfile(profile, defaults) {
-  return {
+function normalizeBuiltInProfile(name, profile, defaults) {
+  const merged = {
     ...defaults,
     ...profile,
     providerId: profile?.providerId ?? defaults.providerId,
     provider: profile?.provider ?? defaults.provider,
     secretName: profile?.secretName ?? defaults.secretName
   };
+
+  if (name === "deepseek-default") {
+    merged.thinkingMode = defaults.thinkingMode;
+    merged.reasoningEffort = defaults.reasoningEffort;
+  }
+
+  return merged;
 }
 
 function normalizeBuiltInGroundedProfile(profile, defaults) {

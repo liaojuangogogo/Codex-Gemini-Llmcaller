@@ -10,6 +10,43 @@
 
 ## 2026-05-08
 
+### 本次提交：Enable DeepSeek thinking by default
+
+变更范围：
+
+- `plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `plugins/Codex-Gemini-Llmcaller/skills/Codex-Gemini-Llmcaller/SKILL.md`
+
+主要内容：
+
+- 按 DeepSeek 官方 thinking mode 文档，将内置 `deepseek-default` 改为默认启用 `thinkingMode: "enabled"`，并设置 `reasoningEffort: "high"`。
+- 增加运行时兼容迁移：旧 `config.json` 中内置 `deepseek-default` 如果仍为 `thinkingMode: "disabled"`，加载配置时会规范化为 enabled/high。
+- 增加回归测试，覆盖内置 profile 元数据、自动路由到 `deepseek-default` 时发送 `thinking: { "type": "enabled" }` 和 `reasoning_effort: "high"`，以及旧配置迁移。
+- 同步中文文档和 skill，明确 DeepSeek 默认 profile 已启用思考模式。
+
+验证结果：
+
+```powershell
+node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件换行会在 Git 触碰时从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新版插件代码和 skill。
+- 已存在的用户级 `config.json` 不需要手动编辑；运行时会把内置 `deepseek-default` 从旧的 disabled 规范化为 enabled/high。
+
 ### 本次提交：Document Codex Desktop marketplace add flow
 
 变更范围：

@@ -165,7 +165,7 @@ DeepSeek：
 用 DeepSeek 检查一下这个回答。
 ```
 
-默认使用 `deepseek-default`；如果要更高质量或 reasoning，可说：
+默认使用 `deepseek-default`，并按 DeepSeek 官方思考模式启用 thinking；如果要更高质量或 Pro 模型，可说：
 
 ```text
 用 DeepSeek Pro 检查上面的方案。

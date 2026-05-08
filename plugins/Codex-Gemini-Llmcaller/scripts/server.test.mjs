@@ -942,6 +942,8 @@ async function testProviderRegistryProfileMetadata() {
   });
   assert.equal(configResult.structuredContent.profiles["deepseek-default"].providerId, "deepseek");
   assert.equal(configResult.structuredContent.profiles["deepseek-default"].baseUrl, "https://api.deepseek.com");
+  assert.equal(configResult.structuredContent.profiles["deepseek-default"].thinkingMode, "enabled");
+  assert.equal(configResult.structuredContent.profiles["deepseek-default"].reasoningEffort, "high");
 
   const profileResult = await handleToolCall({
     name: "profile_set",
@@ -1074,6 +1076,8 @@ async function testAutoRoutingSelectsDeepSeekForContextReview() {
     });
 
     assert.equal(captured.url, "https://api.deepseek.com/chat/completions");
+    assert.deepEqual(captured.body.thinking, { type: "enabled" });
+    assert.equal(captured.body.reasoning_effort, "high");
     assert.equal(result.profileName, "deepseek-default");
     assert.equal(result.delegation.routingMode, "auto");
     assert.equal(result.route.capabilityKey, "deepseek");
@@ -1081,6 +1085,33 @@ async function testAutoRoutingSelectsDeepSeekForContextReview() {
     globalThis.fetch = originalFetch;
     delete process.env.DEEPSEEK_API_KEY;
   }
+}
+
+async function testExistingDeepSeekDefaultMigratesToThinkingMode() {
+  resetSecretStore();
+  writeFileSync(testConfigPath, JSON.stringify({
+    version: 1,
+    defaultProfile: "deepseek-default",
+    profiles: {
+      "deepseek-default": {
+        providerId: "deepseek",
+        provider: "openai-compatible",
+        model: "deepseek-v4-flash",
+        secretName: "deepseek-default",
+        baseUrl: "https://api.deepseek.com",
+        thinkingMode: "disabled",
+        autoContinue: false
+      }
+    }
+  }, null, 2));
+
+  const configResult = await handleToolCall({
+    name: "config_get",
+    arguments: {}
+  });
+  const profile = configResult.structuredContent.profiles["deepseek-default"];
+  assert.equal(profile.thinkingMode, "enabled");
+  assert.equal(profile.reasoningEffort, "high");
 }
 
 async function testAutoRoutingEnablesGroundingForFreshRequests() {
@@ -1667,6 +1698,7 @@ try {
   await testAutoRoutingEnablesGroundingForFreshRequests();
   await testOutputPreviewAndFileModes();
   await testInvalidConfigFallback();
+  await testExistingDeepSeekDefaultMigratesToThinkingMode();
   await testExistingGroundedProfileMigratesOffPreviewModel();
   await testProfileFallback();
   await testGroundingFallbackAnd429Message();

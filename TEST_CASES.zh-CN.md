@@ -282,6 +282,7 @@ Git 引用：（留空）
 - 推荐模型：`deepseek-v4-flash`
 - `outputMode: "json"` 时发送 `response_format: { "type": "json_object" }`
 - `thinkingMode: "enabled"` 时发送 `thinking: { "type": "enabled" }`
+- `deepseek-default` 默认发送 `thinking: { "type": "enabled" }` 和 `reasoning_effort: "high"`；旧配置中内置 `deepseek-default` 如果仍为 `thinkingMode: "disabled"`，运行时会迁移为 enabled。
 - DeepSeek 402/422/429/503 会返回更明确的错误说明
 
 执行：

@@ -96,7 +96,8 @@ export const PROVIDER_SPECS = {
         baseUrl: "https://api.deepseek.com",
         timeoutMs: DEFAULT_TIMEOUT_MS,
         maxTokens: 4096,
-        thinkingMode: "disabled",
+        thinkingMode: "enabled",
+        reasoningEffort: "high",
         autoContinue: false
       },
       "deepseek-pro": {

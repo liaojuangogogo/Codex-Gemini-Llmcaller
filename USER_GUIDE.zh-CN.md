@@ -40,7 +40,7 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 用 DeepSeek 检查一下这个回答。
 ```
 
-默认使用 `deepseek-default` profile。需要更强 reasoning 时：
+默认使用 `deepseek-default` profile，并启用 DeepSeek thinking。需要更强模型能力时：
 
 ```text
 用 DeepSeek Pro 检查上面的方案，返回主要风险和修改建议。
@@ -410,8 +410,8 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deeps
 内置 profile：
 
 ```text
-deepseek-default -> deepseek-v4-flash, thinkingMode 关闭
-deepseek-pro     -> deepseek-v4-pro, thinkingMode 启用
+deepseek-default -> deepseek-v4-flash, thinkingMode 启用, reasoningEffort high
+deepseek-pro     -> deepseek-v4-pro, thinkingMode 启用, reasoningEffort high
 ```
 
 如果要使用本地加密 secret，建议通过初始化命令把 DeepSeek API key 保存为 `deepseek-default`。不要把真实 API key 粘贴到聊天、命令行参数、日志或仓库文件中。
@@ -451,7 +451,7 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 }
 ```
 
-如果要启用 DeepSeek thinking，可在 profile 或单次调用中设置：
+DeepSeek 内置 profile 默认已启用 thinking。需要自定义 profile 或单次覆盖时，可设置：
 
 ```json
 {
