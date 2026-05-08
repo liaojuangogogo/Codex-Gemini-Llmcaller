@@ -10,7 +10,7 @@ import { callModel } from "./server.mjs";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const REPO_ROOT = resolve(PLUGIN_ROOT, "..", "..");
-const DEFAULT_USER_SECRETS_PATH = resolve(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data", "secrets.json");
+const DEFAULT_USER_SECRETS_PATH = resolve(os.homedir(), "plugins", "Codex-Llmcaller", ".data", "secrets.json");
 
 function runNode(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -78,16 +78,16 @@ async function main() {
     : args["real-gemini"] ? "gemini-default" : null;
 
   for (const script of [
-    "plugins/Codex-Gemini-Llmcaller/scripts/server.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/call-model-local.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/check-env.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/mcp-smoke.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs",
-    "plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs",
+    "plugins/Codex-Llmcaller/scripts/server.mjs",
+    "plugins/Codex-Llmcaller/scripts/server.test.mjs",
+    "plugins/Codex-Llmcaller/scripts/provider-registry.mjs",
+    "plugins/Codex-Llmcaller/scripts/call-model-local.mjs",
+    "plugins/Codex-Llmcaller/scripts/secret-import.mjs",
+    "plugins/Codex-Llmcaller/scripts/secret-migrate-local-user.mjs",
+    "plugins/Codex-Llmcaller/scripts/check-env.mjs",
+    "plugins/Codex-Llmcaller/scripts/mcp-smoke.mjs",
+    "plugins/Codex-Llmcaller/scripts/release-check.mjs",
+    "plugins/Codex-Llmcaller/scripts/self-test.mjs",
     "setup.mjs"
   ]) {
     runNode(["--check", script], `Syntax check ${script}`);
@@ -95,19 +95,19 @@ async function main() {
 
   for (const jsonFile of [
     ".agents/plugins/marketplace.json",
-    "plugins/Codex-Gemini-Llmcaller/.codex-plugin/plugin.json",
-    "plugins/Codex-Gemini-Llmcaller/.mcp.json"
+    "plugins/Codex-Llmcaller/.codex-plugin/plugin.json",
+    "plugins/Codex-Llmcaller/.mcp.json"
   ]) {
     assertJson(resolve(REPO_ROOT, jsonFile));
   }
 
-  runNode(["plugins/Codex-Gemini-Llmcaller/scripts/mcp-smoke.mjs"], "MCP smoke");
-  runNode(["plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs"], "Server tests");
-  runNode(["plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs"], "Release check");
+  runNode(["plugins/Codex-Llmcaller/scripts/mcp-smoke.mjs"], "MCP smoke");
+  runNode(["plugins/Codex-Llmcaller/scripts/server.test.mjs"], "Server tests");
+  runNode(["plugins/Codex-Llmcaller/scripts/release-check.mjs"], "Release check");
 
   if (realProfile) {
     if (!existsSync(DEFAULT_USER_SECRETS_PATH)) {
-      throw new Error("Real model test requires installed secrets in $HOME/plugins/Codex-Gemini-Llmcaller/.data/secrets.json.");
+      throw new Error("Real model test requires installed secrets in $HOME/plugins/Codex-Llmcaller/.data/secrets.json.");
     }
     await runRealProfile(realProfile);
   }

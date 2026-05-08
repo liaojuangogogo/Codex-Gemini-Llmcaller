@@ -1,9 +1,9 @@
 ---
-name: Codex-Gemini-Llmcaller
-description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型，比较模型结果，检查回答，配置模型 profile，或管理本地加密 API key 时，使用本地 Codex-Gemini-Llmcaller MCP server。
+name: Codex-Llmcaller
+description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型，比较模型结果，检查回答，配置模型 profile，或管理本地加密 API key 时，使用本地 Codex-Llmcaller MCP server。
 ---
 
-# Codex-Gemini-Llmcaller
+# Codex-Llmcaller
 
 仅当用户明确要求使用 Gemini、DeepSeek 或其他外部模型，比较模型结果，检查回答，配置模型 profile，或管理加密 API key 时使用本 skill。
 

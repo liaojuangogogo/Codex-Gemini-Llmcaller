@@ -19,7 +19,8 @@ import {
   providerSpec
 } from "./provider-registry.mjs";
 
-const SERVER_NAME = "Codex-Gemini-Llmcaller";
+const SERVER_NAME = "Codex-Llmcaller";
+const LEGACY_SERVER_NAME = "Codex-Gemini-Llmcaller";
 const SERVER_VERSION = "0.3.2";
 const CONFIG_STORE_VERSION = 1;
 const SECRET_STORE_VERSION = 1;
@@ -37,8 +38,11 @@ const DEFAULT_PREVIEW_CHARS = 1200;
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const MODULE_DIR = dirname(MODULE_PATH);
 const USER_PLUGIN_ROOT = resolve(homedir(), "plugins", SERVER_NAME);
+const LEGACY_USER_PLUGIN_ROOT = resolve(homedir(), "plugins", LEGACY_SERVER_NAME);
 const DEFAULT_SECRETS_PATH = resolve(USER_PLUGIN_ROOT, ".data", "secrets.json");
 const DEFAULT_CONFIG_PATH = resolve(USER_PLUGIN_ROOT, ".data", "config.json");
+const LEGACY_SECRETS_PATH = resolve(LEGACY_USER_PLUGIN_ROOT, ".data", "secrets.json");
+const LEGACY_CONFIG_PATH = resolve(LEGACY_USER_PLUGIN_ROOT, ".data", "config.json");
 
 const messageSchema = {
   type: "object",
@@ -813,13 +817,13 @@ function writeModelOutputFile(result, args) {
 }
 
 function resolveOutputDir() {
-  const requested = optionalTrimmedString(process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR);
+  const requested = optionalTrimmedString(process.env.CODEX_LLMCALLER_OUTPUT_DIR || process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR);
   const base = resolve(process.cwd());
   const outputDir = resolve(requested || resolve(base, ".tmp", "model-results"));
   const relativePath = relative(base, outputDir);
 
   if (relativePath === ".." || relativePath.startsWith(`..\\`) || relativePath.startsWith("../") || isAbsolute(relativePath)) {
-    throw rpcError(-32602, "CODEX_GEMINI_LLMCALLER_OUTPUT_DIR must stay inside the current workspace.");
+    throw rpcError(-32602, "CODEX_LLMCALLER_OUTPUT_DIR must stay inside the current workspace.");
   }
 
   return outputDir;
@@ -2050,8 +2054,10 @@ function normalizeProfileName(name) {
 }
 
 function getConfigPath() {
-  return process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH ||
+  return process.env.CODEX_LLMCALLER_CONFIG_PATH ||
+    process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH ||
     process.env.MULTI_MODEL_CONFIG_PATH ||
+    existingFilePath(DEFAULT_CONFIG_PATH, LEGACY_CONFIG_PATH) ||
     DEFAULT_CONFIG_PATH;
 }
 
@@ -2121,6 +2127,7 @@ function resolveSecretProtection(args) {
   if (
     (typeof args.masterKey === "string" && args.masterKey.trim()) ||
     (typeof args.masterKeyEnv === "string" && args.masterKeyEnv.trim()) ||
+    process.env.CODEX_LLMCALLER_MASTER_KEY ||
     process.env.CODEX_GEMINI_LLMCALLER_MASTER_KEY ||
     process.env.MULTI_MODEL_MASTER_KEY
   ) {
@@ -2300,7 +2307,7 @@ function decryptSecretRecord(record, masterKey, name) {
   try {
     return decryptSecretValue(record.encrypted, masterKey);
   } catch {
-    throw rpcError(-32602, `Secret '${name}' could not be decrypted. Check masterKey, CODEX_GEMINI_LLMCALLER_MASTER_KEY, or MULTI_MODEL_MASTER_KEY.`);
+    throw rpcError(-32602, `Secret '${name}' could not be decrypted. Check masterKey, CODEX_LLMCALLER_MASTER_KEY, CODEX_GEMINI_LLMCALLER_MASTER_KEY, or MULTI_MODEL_MASTER_KEY.`);
   }
 }
 
@@ -2355,9 +2362,15 @@ function getSecretRecord(name) {
 }
 
 function getSecretsPath() {
-  return process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH ||
+  return process.env.CODEX_LLMCALLER_SECRETS_PATH ||
+    process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH ||
     process.env.MULTI_MODEL_SECRETS_PATH ||
+    existingFilePath(DEFAULT_SECRETS_PATH, LEGACY_SECRETS_PATH) ||
     DEFAULT_SECRETS_PATH;
+}
+
+function existingFilePath(...paths) {
+  return paths.find((filePath) => existsSync(filePath));
 }
 
 export function getStorePathsForTesting() {
@@ -2389,6 +2402,10 @@ function resolveMasterKey(args) {
     return args.masterKey;
   }
 
+  if (process.env.CODEX_LLMCALLER_MASTER_KEY) {
+    return process.env.CODEX_LLMCALLER_MASTER_KEY;
+  }
+
   if (process.env.CODEX_GEMINI_LLMCALLER_MASTER_KEY) {
     return process.env.CODEX_GEMINI_LLMCALLER_MASTER_KEY;
   }
@@ -2397,7 +2414,7 @@ function resolveMasterKey(args) {
     return process.env.MULTI_MODEL_MASTER_KEY;
   }
 
-  throw rpcError(-32602, "A master key is required for this passphrase-protected secret. Pass masterKey, masterKeyEnv, or set CODEX_GEMINI_LLMCALLER_MASTER_KEY.");
+  throw rpcError(-32602, "A master key is required for this passphrase-protected secret. Pass masterKey, masterKeyEnv, or set CODEX_LLMCALLER_MASTER_KEY.");
 }
 
 function normalizeSecretName(name) {

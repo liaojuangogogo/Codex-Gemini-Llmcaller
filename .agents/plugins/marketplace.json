@@ -1,14 +1,14 @@
 {
-  "name": "codex-gemini-llmcaller-local",
+  "name": "codex-llmcaller-local",
   "interface": {
-    "displayName": "Codex-Gemini-Llmcaller Local Plugins"
+    "displayName": "Codex-Llmcaller Local Plugins"
   },
   "plugins": [
     {
-      "name": "Codex-Gemini-Llmcaller",
+      "name": "Codex-Llmcaller",
       "source": {
         "source": "local",
-        "path": "./plugins/Codex-Gemini-Llmcaller"
+        "path": "./plugins/Codex-Llmcaller"
       },
       "policy": {
         "installation": "AVAILABLE",

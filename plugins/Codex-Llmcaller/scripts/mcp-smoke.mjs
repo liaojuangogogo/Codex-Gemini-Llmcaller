@@ -46,7 +46,7 @@ async function runSmoke() {
   if (!configResult.structuredContent.profiles?.[configResult.structuredContent.defaultProfile]) {
     throw new Error(`Unexpected default profile: ${configResult.structuredContent.defaultProfile}`);
   }
-  if (initialize.serverInfo?.name !== "Codex-Gemini-Llmcaller") {
+  if (initialize.serverInfo?.name !== "Codex-Llmcaller") {
     throw new Error(`Unexpected server name: ${initialize.serverInfo?.name}`);
   }
 

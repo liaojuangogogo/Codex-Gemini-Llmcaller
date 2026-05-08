@@ -1,11 +1,11 @@
-# Codex-Gemini-Llmcaller 测试用例
+# Codex-Llmcaller 测试用例
 
 以下命令默认在仓库根目录执行。
 
 ## 1. 环境检查
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/check-env.mjs
+node ./plugins/Codex-Llmcaller/scripts/check-env.mjs
 ```
 
 预期：
@@ -17,20 +17,20 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/check-env.mjs
 ## 2. 发布检查
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
+node ./plugins/Codex-Llmcaller/scripts/release-check.mjs
 ```
 
 预期：
 
 - JSON 文件可解析。
 - 仓库内没有开发机绝对路径。
-- `./.tmp/` 和 `./plugins/Codex-Gemini-Llmcaller/.data/` 内没有待上传文件。
+- `./.tmp/` 和 `./plugins/Codex-Llmcaller/.data/` 内没有待上传文件。
 - `.gitignore` 忽略 `.tmp/`，插件 `.gitignore` 忽略 `.data/`。
 
 ## 3. 本地回归
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs
 ```
 
 预期：
@@ -48,11 +48,11 @@ node ./setup.mjs
 预期：
 
 - 隐藏输入 Gemini API key。
-- 用户级目录 `$HOME/plugins/Codex-Gemini-Llmcaller` 存在。
+- 用户级目录 `$HOME/plugins/Codex-Llmcaller` 存在。
 - 目标 `.mcp.json` 中 `args[0]` 是绝对 `server.mjs` 路径。
-- 用户级 marketplace 包含 `Codex-Gemini-Llmcaller`。
+- 用户级 marketplace 包含 `Codex-Llmcaller`。
 - `.data/secrets.json` 不包含明文 API key。
-- `$HOME/.codex/plugins/cache/codex-gemini-llmcaller-local/Codex-Gemini-Llmcaller` 旧缓存被清理，重启客户端后会重新生成新版本缓存。
+- `$HOME/.codex/plugins/cache/codex-llmcaller-local/Codex-Llmcaller` 旧缓存被清理，重启客户端后会重新生成新版本缓存。
 
 多模型初始化：
 
@@ -101,12 +101,23 @@ node ./setup.mjs --providers deepseek --default-profile deepseek-default
 - 隐藏输入 DeepSeek API key。
 - 默认 profile 为 `deepseek-default`。
 
+多 provider 初始化并显式设置全局默认 profile：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --default-profile deepseek-default
+```
+
+预期：
+
+- 同时写入 Gemini 和 DeepSeek profile。
+- 初始化完成后 `defaultProfile` 为 `deepseek-default`。
+
 ## 5. 旧数据迁移
 
 前置条件：
 
-- `$HOME/plugins/multi-model-api/.data/` 存在。
-- `$HOME/plugins/Codex-Gemini-Llmcaller/.data/` 不存在。
+- `$HOME/plugins/Codex-Gemini-Llmcaller/.data/` 或 `$HOME/plugins/multi-model-api/.data/` 存在。
+- `$HOME/plugins/Codex-Llmcaller/.data/` 不存在。
 
 执行：
 
@@ -117,7 +128,7 @@ node ./setup.mjs
 预期：
 
 - 新目录自动获得旧 `.data/`。
-- 旧 `$HOME/plugins/multi-model-api` 不被删除。
+- 旧 `$HOME/plugins/Codex-Gemini-Llmcaller` 或 `$HOME/plugins/multi-model-api` 不被删除。
 - 如旧 secret 可解密，脚本跳过 API key 输入。
 
 ## 6. 非交互安装
@@ -146,7 +157,7 @@ node ./setup.mjs --providers gemini,deepseek --api-key-env gemini=GEMINI_API_KEY
 ## 7. 真实 Gemini
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
 预期：
@@ -158,7 +169,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
 真实 profile 自测：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
 ```
 
 预期：
@@ -213,12 +224,12 @@ node ./setup.mjs --providers gemini,deepseek
 
 2. 左侧进入“插件”。
 3. 顶部选择“插件”页签。
-4. 插件源下拉选择 `Codex-Gemini-Llmcaller Local Plugins`。
-5. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+4. 插件源下拉选择 `Codex-Llmcaller Local Plugins`。
+5. 找到 `Codex-Llmcaller`，点击 `+`。
 6. 在会话中说：
 
 ```text
-@Codex-Gemini-Llmcaller 检查上面的回答。
+@Codex-Llmcaller 检查上面的回答。
 ```
 
 预期：插件可在当前会话中调用，不需要手动 import `server.mjs`。
@@ -227,22 +238,22 @@ node ./setup.mjs --providers gemini,deepseek
 
 ```text
 本地仓库方式：
-来源：E:\Git\Codex-Gemini-Llmcaller
+来源：E:\Git\Codex-Llmcaller
 Git 引用：（留空）
 稀疏路径：.agents/plugins
 
 GitHub 方式：
-来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
 稀疏路径：.agents/plugins
 
 本地兜底方式：
-来源：E:\Git\Codex-Gemini-Llmcaller\.agents\plugins
+来源：E:\Git\Codex-Llmcaller\.agents\plugins
 Git 引用：（留空）
 稀疏路径：（留空）
 ```
 
-预期：添加市场成功后，插件源列表出现 `Codex-Gemini-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Gemini-Llmcaller`。界面添加市场不会录入 API key；真实调用前仍需要完成 `setup.mjs` 初始化。
+预期：添加市场成功后，插件源列表出现 `Codex-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Llmcaller`。界面添加市场不会录入 API key；真实调用前仍需要完成 `setup.mjs` 初始化。
 
 ## 9. 兜底调用 footer 验证
 
@@ -288,7 +299,7 @@ Git 引用：（留空）
 执行：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
+node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
 ```
 
 ## 12. 输出模式与能力表回归
@@ -305,5 +316,5 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
 执行：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
+node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
 ```

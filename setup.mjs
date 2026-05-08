@@ -20,12 +20,18 @@ import {
   PROVIDER_SPECS,
   apiKeyEnvMap,
   setupProviderSpecs
-} from "./plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs";
+} from "./plugins/Codex-Llmcaller/scripts/provider-registry.mjs";
 
-const PLUGIN_NAME = "Codex-Gemini-Llmcaller";
-const LEGACY_PLUGIN_NAME = "multi-model-api";
-const MARKETPLACE_NAME = "codex-gemini-llmcaller-local";
-const MARKETPLACE_DISPLAY_NAME = "Codex-Gemini-Llmcaller Local Plugins";
+const PLUGIN_NAME = "Codex-Llmcaller";
+const LEGACY_PLUGIN_NAMES = ["Codex-Gemini-Llmcaller", "multi-model-api"];
+const MARKETPLACE_NAME = "codex-llmcaller-local";
+const LEGACY_MARKETPLACE_NAMES = ["codex-gemini-llmcaller-local"];
+const MARKETPLACE_DISPLAY_NAME = "Codex-Llmcaller Local Plugins";
+const LEGACY_MARKETPLACE_DISPLAY_NAMES = [
+  "Codex-Gemini-Llmcaller Local Plugins",
+  "Local User Plugins",
+  "CheckWithModel Local Plugins"
+];
 const MIN_NODE_MAJOR = 18;
 const REPO_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE_PLUGIN_DIR = path.join(REPO_ROOT, "plugins", PLUGIN_NAME);
@@ -75,7 +81,7 @@ Options:
   --api-key-env GEMINI_API_KEY       Read the default provider API key from a local environment variable.
   --api-key-env gemini=GEMINI_API_KEY,deepseek=DEEPSEEK_API_KEY
                                     Read multiple provider API keys from local environment variables.
-  --default-profile deepseek-default Set the default profile after initialization.
+  --default-profile deepseek-default Set the global default profile after initialization.
   --refresh-secrets                 Re-enter or re-import provider API keys even when decryptable secrets already exist.
   --skip-api-validate               Skip the lightweight provider API validation calls after initialization.
   --install-only                     Install/register the plugin without initializing secrets or profiles.
@@ -87,10 +93,10 @@ Options:
   --yes                              Skip interactive confirmation prompts.
 
 Default install target:
-  path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller")
+  path.join(os.homedir(), "plugins", "Codex-Llmcaller")
 
 Default encrypted data target:
-  path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data")
+  path.join(os.homedir(), "plugins", "Codex-Llmcaller", ".data")
 
 Default marketplace target:
   path.join(os.homedir(), ".agents", "plugins", "marketplace.json")`);
@@ -123,6 +129,13 @@ function defaultMarketplacePath() {
 
 function defaultPluginCacheDir() {
   return path.join(os.homedir(), ".codex", "plugins", "cache", MARKETPLACE_NAME, PLUGIN_NAME);
+}
+
+function legacyPluginCacheDirs() {
+  return [
+    ...LEGACY_MARKETPLACE_NAMES.map((marketplaceName) => path.join(os.homedir(), ".codex", "plugins", "cache", marketplaceName, "Codex-Gemini-Llmcaller")),
+    path.join(os.homedir(), ".codex", "plugins", "cache", MARKETPLACE_NAME, "Codex-Gemini-Llmcaller")
+  ];
 }
 
 function resolveInstallOptions(args) {
@@ -198,7 +211,7 @@ function checkPowerShell() {
 
 function ensureSourcePluginExists() {
   if (!existsSync(path.join(SOURCE_PLUGIN_DIR, ".codex-plugin", "plugin.json"))) {
-    throw new Error("Could not find ./plugins/Codex-Gemini-Llmcaller/.codex-plugin/plugin.json. Run setup from the repository root.");
+    throw new Error("Could not find ./plugins/Codex-Llmcaller/.codex-plugin/plugin.json. Run setup from the repository root.");
   }
 }
 
@@ -216,14 +229,14 @@ function assertSafeTarget(sourceDir, targetDir) {
 
 function probeWritableDirectory(directory) {
   mkdirSync(directory, { recursive: true });
-  const probePath = path.join(directory, `.codex-gemini-llmcaller-write-test-${process.pid}-${Date.now()}`);
+  const probePath = path.join(directory, `.codex-llmcaller-write-test-${process.pid}-${Date.now()}`);
   writeFileSync(probePath, "ok", "utf8");
   rmSync(probePath, { force: true });
 }
 
 function checkWritableTargets(options) {
   probeWritableDirectory(options.pluginTargetDir);
-  probeWritableDirectory(defaultPluginDataDir());
+  probeWritableDirectory(path.join(options.pluginTargetDir, ".data"));
   probeWritableDirectory(path.dirname(options.marketplacePath));
 }
 
@@ -398,15 +411,21 @@ function cleanTargetExceptData(targetDir) {
 }
 
 function migrateLegacyDataIfNeeded(options) {
-  const targetDataDir = defaultPluginDataDir();
-  const legacyDataDir = path.join(os.homedir(), "plugins", LEGACY_PLUGIN_NAME, ".data");
+  const targetDataDir = path.join(options.pluginTargetDir, ".data");
 
-  if (existsSync(targetDataDir) || !existsSync(legacyDataDir)) {
-    return false;
+  if (existsSync(targetDataDir)) {
+    return null;
   }
 
-  copyDirectoryContents(legacyDataDir, targetDataDir);
-  return true;
+  for (const legacyPluginName of LEGACY_PLUGIN_NAMES) {
+    const legacyDataDir = path.join(os.homedir(), "plugins", legacyPluginName, ".data");
+    if (existsSync(legacyDataDir)) {
+      copyDirectoryContents(legacyDataDir, targetDataDir);
+      return legacyDataDir;
+    }
+  }
+
+  return null;
 }
 
 function writeInstalledMcpConfig(options) {
@@ -557,13 +576,13 @@ function readMarketplace(marketplacePath) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Existing marketplace.json must contain a JSON object.");
   }
-  if (!parsed.name) {
+  if (!parsed.name || LEGACY_MARKETPLACE_NAMES.includes(parsed.name)) {
     parsed.name = MARKETPLACE_NAME;
   }
   if (!parsed.interface || typeof parsed.interface !== "object" || Array.isArray(parsed.interface)) {
     parsed.interface = { displayName: MARKETPLACE_DISPLAY_NAME };
   }
-  if (["Local User Plugins", "CheckWithModel Local Plugins"].includes(parsed.interface.displayName)) {
+  if (LEGACY_MARKETPLACE_DISPLAY_NAMES.includes(parsed.interface.displayName)) {
     parsed.interface.displayName = MARKETPLACE_DISPLAY_NAME;
   }
   if (!Array.isArray(parsed.plugins)) {
@@ -592,7 +611,7 @@ function writeMarketplace(options) {
     },
     category: "Productivity"
   };
-  marketplace.plugins = marketplace.plugins.filter((plugin) => plugin?.name !== LEGACY_PLUGIN_NAME);
+  marketplace.plugins = marketplace.plugins.filter((plugin) => !LEGACY_PLUGIN_NAMES.includes(plugin?.name));
   const existingIndex = marketplace.plugins.findIndex((plugin) => plugin?.name === PLUGIN_NAME);
 
   if (existingIndex === -1) {
@@ -607,17 +626,22 @@ function writeMarketplace(options) {
 }
 
 function clearPluginCache() {
-  const cacheDir = defaultPluginCacheDir();
+  const cacheDirs = [defaultPluginCacheDir(), ...legacyPluginCacheDirs()];
+  let cleared = false;
 
-  if (!existsSync(cacheDir)) {
-    return false;
+  for (const cacheDir of cacheDirs) {
+    if (!existsSync(cacheDir)) {
+      continue;
+    }
+
+    rmSync(cacheDir, {
+      recursive: true,
+      force: true
+    });
+    cleared = true;
   }
 
-  rmSync(cacheDir, {
-    recursive: true,
-    force: true
-  });
-  return true;
+  return cleared;
 }
 
 function isBusyError(error) {
@@ -629,7 +653,7 @@ function printEnvironmentSummary(options, powerShellVersion) {
   console.log(`PowerShell: ${powerShellVersion}`);
   console.log(`Source plugin: ${path.relative(REPO_ROOT, SOURCE_PLUGIN_DIR)}`);
   console.log(`Plugin target: ${options.pluginTargetDir}`);
-  console.log(`Plugin data: ${defaultPluginDataDir()}`);
+  console.log(`Plugin data: ${path.join(options.pluginTargetDir, ".data")}`);
   console.log(`Plugin cache: ${defaultPluginCacheDir()}`);
   console.log(`Marketplace: ${options.marketplacePath}`);
 }
@@ -660,12 +684,12 @@ async function main() {
   cleanTargetExceptData(options.pluginTargetDir);
   copyPluginSource(SOURCE_PLUGIN_DIR, options.pluginTargetDir);
   writeInstalledMcpConfig(options);
-  const migratedLegacyData = migrateLegacyDataIfNeeded(options);
+  const migratedLegacyDataDir = migrateLegacyDataIfNeeded(options);
   const server = await loadInstalledServer(options);
   const providerPlans = buildProviderPlans(options);
 
-  if (migratedLegacyData) {
-    console.log(`Migrated existing encrypted data from ${path.join(os.homedir(), "plugins", LEGACY_PLUGIN_NAME, ".data")}.`);
+  if (migratedLegacyDataDir) {
+    console.log(`Migrated existing encrypted data from ${migratedLegacyDataDir}.`);
   }
 
   if (!options.installOnly) {
@@ -702,7 +726,7 @@ async function main() {
   const cacheCleared = clearPluginCache();
 
   if (cacheCleared) {
-    console.log(`Cleared old Codex plugin cache: ${defaultPluginCacheDir()}`);
+    console.log("Cleared old Codex plugin cache entries.");
   }
 
   if (!options.installOnly) {
@@ -739,7 +763,7 @@ async function main() {
   console.log("初始化完成。");
   const example = providerPlans[0]?.spec.setupExample ?? "用外部模型检查一下这个回答。";
   console.log(`重启 Codex Desktop 后，可以直接说：${example}`);
-  console.log("也可以在插件页把 Codex-Gemini-Llmcaller 添加到会话后使用。");
+  console.log("也可以在插件页把 Codex-Llmcaller 添加到会话后使用。");
 }
 
 main().catch((error) => {

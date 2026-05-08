@@ -1,5 +1,5 @@
 {
-  "name": "Codex-Gemini-Llmcaller",
+  "name": "Codex-Llmcaller",
   "version": "0.3.2",
   "description": "Call API-key authenticated model providers through local profiles, encrypted secrets, Gemini grounding, image inputs, fallback profiles, and automatic continuation.",
   "author": {
@@ -8,7 +8,7 @@
     "url": "https://example.com"
   },
   "homepage": "https://modelcontextprotocol.io/",
-  "repository": "https://example.com/Codex-Gemini-Llmcaller",
+  "repository": "https://github.com/liaojuangogogo/Codex-Llmcaller",
   "license": "MIT",
   "keywords": [
     "llm",
@@ -21,7 +21,7 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Codex-Gemini-Llmcaller",
+    "displayName": "Codex-Llmcaller",
     "shortDescription": "Call models through local profiles",
     "longDescription": "Use a local MCP server to call Gemini, DeepSeek, OpenAI-compatible providers, and Anthropic with encrypted local secrets, configurable profiles, strict delegation metadata, Gemini Google Search grounding, image inputs, fallback profiles, provider-aware routing metadata, and automatic continuation for truncated responses.",
     "developerName": "Local Developer",
@@ -29,7 +29,7 @@
     "capabilities": [
       "Interactive"
     ],
-    "websiteURL": "https://modelcontextprotocol.io/",
+    "websiteURL": "https://github.com/liaojuangogogo/Codex-Llmcaller",
     "privacyPolicyURL": "https://example.com/privacy",
     "termsOfServiceURL": "https://example.com/terms",
     "defaultPrompt": [

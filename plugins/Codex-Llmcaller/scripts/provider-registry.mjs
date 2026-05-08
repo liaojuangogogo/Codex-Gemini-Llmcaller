@@ -10,7 +10,7 @@ export const PROVIDER_SPECS = {
     provider: "google",
     defaultSecretName: "gemini-default",
     defaultApiKeyEnv: "GEMINI_API_KEY",
-    apiKeyEnvNames: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     setupPrompt: "Gemini API key: ",
     setupExample: "用 Gemini 检查一下这个回答。",
@@ -73,7 +73,7 @@ export const PROVIDER_SPECS = {
     provider: "openai-compatible",
     defaultSecretName: "deepseek-default",
     defaultApiKeyEnv: "DEEPSEEK_API_KEY",
-    apiKeyEnvNames: ["DEEPSEEK_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["DEEPSEEK_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://api.deepseek.com",
     setupPrompt: "DeepSeek API key: ",
     setupExample: "用 DeepSeek 检查一下这个回答。",
@@ -120,7 +120,7 @@ export const PROVIDER_SPECS = {
     provider: "openai-compatible",
     defaultSecretName: "openrouter-default",
     defaultApiKeyEnv: "OPENROUTER_API_KEY",
-    apiKeyEnvNames: ["OPENROUTER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["OPENROUTER_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://openrouter.ai/api/v1",
     capabilities: {
       chat: true,
@@ -138,7 +138,7 @@ export const PROVIDER_SPECS = {
     provider: "anthropic",
     defaultSecretName: "anthropic-default",
     defaultApiKeyEnv: "ANTHROPIC_API_KEY",
-    apiKeyEnvNames: ["ANTHROPIC_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["ANTHROPIC_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://api.anthropic.com/v1",
     capabilities: {
       chat: true,
@@ -156,7 +156,7 @@ export const PROVIDER_SPECS = {
     provider: "openai-compatible",
     defaultSecretName: "groq-default",
     defaultApiKeyEnv: "GROQ_API_KEY",
-    apiKeyEnvNames: ["GROQ_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["GROQ_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://api.groq.com/openai/v1"
   },
   mistral: {
@@ -165,7 +165,7 @@ export const PROVIDER_SPECS = {
     provider: "openai-compatible",
     defaultSecretName: "mistral-default",
     defaultApiKeyEnv: "MISTRAL_API_KEY",
-    apiKeyEnvNames: ["MISTRAL_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["MISTRAL_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://api.mistral.ai/v1"
   },
   xai: {
@@ -174,7 +174,7 @@ export const PROVIDER_SPECS = {
     provider: "openai-compatible",
     defaultSecretName: "xai-default",
     defaultApiKeyEnv: "XAI_API_KEY",
-    apiKeyEnvNames: ["XAI_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    apiKeyEnvNames: ["XAI_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
     baseUrl: "https://api.x.ai/v1"
   }
 };
@@ -332,10 +332,10 @@ export function envNamesForCall(args = {}) {
   const inferred = inferProviderId(args);
   const specNames = inferred && PROVIDER_SPECS[inferred]?.apiKeyEnvNames ? PROVIDER_SPECS[inferred].apiKeyEnvNames : [];
   const protocolNames = {
-    "openai-compatible": ["CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY"],
-    anthropic: ["ANTHROPIC_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
-    google: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"]
-  }[args.provider] ?? ["CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"];
+    "openai-compatible": ["CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY"],
+    anthropic: ["ANTHROPIC_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"],
+    google: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"]
+  }[args.provider] ?? ["CODEX_LLMCALLER_API_KEY", "CODEX_GEMINI_LLMCALLER_API_KEY", "MULTI_MODEL_API_KEY"];
 
   return [...new Set([...specNames, ...protocolNames])];
 }

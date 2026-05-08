@@ -69,12 +69,12 @@ function scanForbiddenPaths(files) {
 function assertDataIgnored() {
   const gitignorePath = join(PLUGIN_ROOT, ".gitignore");
   if (!existsSync(gitignorePath)) {
-    throw new Error("plugins/Codex-Gemini-Llmcaller/.gitignore is missing.");
+    throw new Error("plugins/Codex-Llmcaller/.gitignore is missing.");
   }
 
   const content = readFileSync(gitignorePath, "utf8");
   if (!/^\.data\/?$/mu.test(content)) {
-    throw new Error("plugins/Codex-Gemini-Llmcaller/.gitignore must ignore .data/.");
+    throw new Error("plugins/Codex-Llmcaller/.gitignore must ignore .data/.");
   }
 }
 
@@ -178,7 +178,7 @@ try {
   assertNoSensitiveTrackedPaths();
   assertDirectoryHasNoFiles(join(REPO_ROOT, ".tmp"), ".tmp/");
   assertDirectoryHasNoFiles(join(REPO_ROOT, ".data"), ".data/");
-  assertDirectoryHasNoFiles(join(PLUGIN_ROOT, ".data"), "plugins/Codex-Gemini-Llmcaller/.data/");
+  assertDirectoryHasNoFiles(join(PLUGIN_ROOT, ".data"), "plugins/Codex-Llmcaller/.data/");
   const findings = scanForbiddenPaths(files);
   if (findings.length) {
     throw new Error(`Release path check failed:\n${findings.join("\n")}`);

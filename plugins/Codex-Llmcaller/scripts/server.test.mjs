@@ -17,21 +17,26 @@ const MASTER_KEY = "test-master-password";
 const testDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".data", "test-secrets");
 const testSecretsPath = resolve(testDir, "secrets.json");
 const testConfigPath = resolve(testDir, "config.json");
-const defaultUserDataDir = resolve(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data");
+const defaultUserDataDir = resolve(os.homedir(), "plugins", "Codex-Llmcaller", ".data");
+const legacyRenamedUserDataDir = resolve(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data");
 
 function resetSecretStore() {
   rmSync(testDir, { recursive: true, force: true });
   mkdirSync(testDir, { recursive: true });
-  process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = testSecretsPath;
-  process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = testConfigPath;
+  process.env.CODEX_LLMCALLER_SECRETS_PATH = testSecretsPath;
+  process.env.CODEX_LLMCALLER_CONFIG_PATH = testConfigPath;
 }
 
 function testDefaultStorePathsAreUserStable() {
-  const previousSecretsPath = process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
-  const previousConfigPath = process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+  const previousSecretsPath = process.env.CODEX_LLMCALLER_SECRETS_PATH;
+  const previousConfigPath = process.env.CODEX_LLMCALLER_CONFIG_PATH;
+  const previousOldSecretsPath = process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+  const previousOldConfigPath = process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
   const previousLegacySecretsPath = process.env.MULTI_MODEL_SECRETS_PATH;
   const previousLegacyConfigPath = process.env.MULTI_MODEL_CONFIG_PATH;
 
+  delete process.env.CODEX_LLMCALLER_SECRETS_PATH;
+  delete process.env.CODEX_LLMCALLER_CONFIG_PATH;
   delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
   delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
   delete process.env.MULTI_MODEL_SECRETS_PATH;
@@ -39,20 +44,34 @@ function testDefaultStorePathsAreUserStable() {
 
   try {
     const paths = getStorePathsForTesting();
-    assert.equal(paths.secretsPath, resolve(defaultUserDataDir, "secrets.json"));
-    assert.equal(paths.configPath, resolve(defaultUserDataDir, "config.json"));
+    const defaultSecretsPath = resolve(defaultUserDataDir, "secrets.json");
+    const defaultConfigPath = resolve(defaultUserDataDir, "config.json");
+    const legacySecretsPath = resolve(legacyRenamedUserDataDir, "secrets.json");
+    const legacyConfigPath = resolve(legacyRenamedUserDataDir, "config.json");
+    assert.equal(paths.secretsPath, existsSync(defaultSecretsPath) ? defaultSecretsPath : existsSync(legacySecretsPath) ? legacySecretsPath : defaultSecretsPath);
+    assert.equal(paths.configPath, existsSync(defaultConfigPath) ? defaultConfigPath : existsSync(legacyConfigPath) ? legacyConfigPath : defaultConfigPath);
     assert(!paths.secretsPath.includes(".codex"), "default secrets path must not point at Codex plugin cache");
     assert(!paths.configPath.includes(".codex"), "default config path must not point at Codex plugin cache");
   } finally {
     if (previousSecretsPath === undefined) {
-      delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+      delete process.env.CODEX_LLMCALLER_SECRETS_PATH;
     } else {
-      process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = previousSecretsPath;
+      process.env.CODEX_LLMCALLER_SECRETS_PATH = previousSecretsPath;
     }
     if (previousConfigPath === undefined) {
+      delete process.env.CODEX_LLMCALLER_CONFIG_PATH;
+    } else {
+      process.env.CODEX_LLMCALLER_CONFIG_PATH = previousConfigPath;
+    }
+    if (previousOldSecretsPath === undefined) {
+      delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+    } else {
+      process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = previousOldSecretsPath;
+    }
+    if (previousOldConfigPath === undefined) {
       delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
     } else {
-      process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = previousConfigPath;
+      process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = previousOldConfigPath;
     }
     if (previousLegacySecretsPath === undefined) {
       delete process.env.MULTI_MODEL_SECRETS_PATH;
@@ -139,16 +158,16 @@ async function testSecretEncryption() {
 
 async function testSecretSetFromEnv() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_MASTER_KEY = MASTER_KEY;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_MASTER_KEY = MASTER_KEY;
 
   try {
     const setResult = await handleToolCall({
       name: "secret_set",
       arguments: {
         name: "env-secret",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
-        masterKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_MASTER_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
+        masterKeyEnv: "TEST_CODEX_LLMCALLER_MASTER_KEY",
         provider: "google"
       }
     });
@@ -157,8 +176,8 @@ async function testSecretSetFromEnv() {
     assert(!JSON.stringify(setResult).includes(TEST_SECRET), "secret_set with apiKeyEnv must not return plaintext key");
     assert(!readFileSync(testSecretsPath, "utf8").includes(TEST_SECRET), "secret store must not contain plaintext key from env");
   } finally {
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_MASTER_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_MASTER_KEY;
   }
 }
 
@@ -479,7 +498,7 @@ async function testGeminiImageInputs() {
 
 async function testProfileDefaults() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
   let capturedUrls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
@@ -521,7 +540,7 @@ async function testProfileDefaults() {
         name: "test-default",
         provider: "google",
         model: "gemini-profile",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         thinkingLevel: "low",
         timeoutMs: 30000,
         setDefault: true
@@ -545,7 +564,7 @@ async function testProfileDefaults() {
     assert(capturedUrls[1].endsWith("/models/gemini-override:generateContent"));
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
   }
 }
 
@@ -674,7 +693,7 @@ async function testVisibleMetaFooter() {
 
 async function testOutputMetaFooterConfigPrecedence() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
   writeFileSync(testConfigPath, JSON.stringify({
     version: 1,
     defaultProfile: "quiet",
@@ -683,12 +702,12 @@ async function testOutputMetaFooterConfigPrecedence() {
       quiet: {
         provider: "google",
         model: "gemini-quiet",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY"
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY"
       },
       loud: {
         provider: "google",
         model: "gemini-loud",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         outputMetaFooter: true
       }
     }
@@ -744,7 +763,7 @@ async function testOutputMetaFooterConfigPrecedence() {
     assert.equal(explicitHidden.content[0].text, "configured response");
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
   }
 }
 
@@ -809,6 +828,45 @@ async function testProviderTokenUsageMappings() {
     assert.equal(anthropicResult.tokenUsage.total, 19);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+}
+
+function testLegacyRenamedEnvPathsStillWork() {
+  const previousSecretsPath = process.env.CODEX_LLMCALLER_SECRETS_PATH;
+  const previousConfigPath = process.env.CODEX_LLMCALLER_CONFIG_PATH;
+  const previousOldSecretsPath = process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+  const previousOldConfigPath = process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+
+  delete process.env.CODEX_LLMCALLER_SECRETS_PATH;
+  delete process.env.CODEX_LLMCALLER_CONFIG_PATH;
+  process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = testSecretsPath;
+  process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = testConfigPath;
+
+  try {
+    const paths = getStorePathsForTesting();
+    assert.equal(paths.secretsPath, testSecretsPath);
+    assert.equal(paths.configPath, testConfigPath);
+  } finally {
+    if (previousSecretsPath === undefined) {
+      delete process.env.CODEX_LLMCALLER_SECRETS_PATH;
+    } else {
+      process.env.CODEX_LLMCALLER_SECRETS_PATH = previousSecretsPath;
+    }
+    if (previousConfigPath === undefined) {
+      delete process.env.CODEX_LLMCALLER_CONFIG_PATH;
+    } else {
+      process.env.CODEX_LLMCALLER_CONFIG_PATH = previousConfigPath;
+    }
+    if (previousOldSecretsPath === undefined) {
+      delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
+    } else {
+      process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH = previousOldSecretsPath;
+    }
+    if (previousOldConfigPath === undefined) {
+      delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
+    } else {
+      process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH = previousOldConfigPath;
+    }
   }
 }
 
@@ -1166,7 +1224,7 @@ async function testAutoRoutingEnablesGroundingForFreshRequests() {
 
 async function testOutputPreviewAndFileModes() {
   resetSecretStore();
-  process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(testDir, "model-results");
+  process.env.CODEX_LLMCALLER_OUTPUT_DIR = resolve(testDir, "model-results");
   const longText = "0123456789".repeat(40);
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => ({
@@ -1216,10 +1274,10 @@ async function testOutputPreviewAndFileModes() {
     assert.equal(fileResult.outputPreview.truncated, true);
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR;
+    delete process.env.CODEX_LLMCALLER_OUTPUT_DIR;
   }
 
-  process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR = resolve(process.cwd(), "..", "outside-model-results");
+  process.env.CODEX_LLMCALLER_OUTPUT_DIR = resolve(process.cwd(), "..", "outside-model-results");
   globalThis.fetch = async () => ({
     ok: true,
     status: 200,
@@ -1247,7 +1305,7 @@ async function testOutputPreviewAndFileModes() {
     );
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.CODEX_GEMINI_LLMCALLER_OUTPUT_DIR;
+    delete process.env.CODEX_LLMCALLER_OUTPUT_DIR;
   }
 }
 
@@ -1312,7 +1370,7 @@ async function testInvalidConfigFallback() {
 
 async function testExistingGroundedProfileMigratesOffPreviewModel() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
   writeFileSync(testConfigPath, JSON.stringify({
     version: 1,
     defaultProfile: "gemini-default",
@@ -1321,12 +1379,12 @@ async function testExistingGroundedProfileMigratesOffPreviewModel() {
       "gemini-default": {
         provider: "google",
         model: "gemini-3-flash-preview",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY"
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY"
       },
       "gemini-grounded": {
         provider: "google",
         model: "gemini-3-flash-preview",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         groundingMode: "google_search",
         thinkingLevel: "low",
         generationConfig: {
@@ -1374,13 +1432,13 @@ async function testExistingGroundedProfileMigratesOffPreviewModel() {
     assert.equal(result.profileName, "gemini-grounded");
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
   }
 }
 
 async function testProfileFallback() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
   const capturedUrls = [];
   let calls = 0;
   const originalFetch = globalThis.fetch;
@@ -1426,7 +1484,7 @@ async function testProfileFallback() {
         name: "backup",
         provider: "google",
         model: "gemini-backup",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY"
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY"
       }
     });
     await handleToolCall({
@@ -1435,7 +1493,7 @@ async function testProfileFallback() {
         name: "primary",
         provider: "google",
         model: "gemini-primary",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         fallbackProfiles: ["backup"],
         setDefault: true
       }
@@ -1456,13 +1514,13 @@ async function testProfileFallback() {
     assert(!JSON.stringify(result).includes(TEST_SECRET), "fallback metadata must not contain plaintext key");
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
   }
 }
 
 async function testGroundingFallbackAnd429Message() {
   resetSecretStore();
-  process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY = TEST_SECRET;
+  process.env.TEST_CODEX_LLMCALLER_API_KEY = TEST_SECRET;
   const capturedUrls = [];
   let calls = 0;
   const originalFetch = globalThis.fetch;
@@ -1514,7 +1572,7 @@ async function testGroundingFallbackAnd429Message() {
         name: "primary-grounded",
         provider: "google",
         model: "gemini-2.5-flash",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         groundingMode: "google_search",
         fallbackProfiles: ["backup-grounded"],
         setDefault: true
@@ -1526,7 +1584,7 @@ async function testGroundingFallbackAnd429Message() {
         name: "backup-grounded",
         provider: "google",
         model: "gemini-2.0-flash",
-        apiKeyEnv: "TEST_CODEX_GEMINI_LLMCALLER_API_KEY",
+        apiKeyEnv: "TEST_CODEX_LLMCALLER_API_KEY",
         groundingMode: "google_search"
       }
     });
@@ -1547,7 +1605,7 @@ async function testGroundingFallbackAnd429Message() {
     assert(!JSON.stringify(result).includes(TEST_SECRET), "grounding fallback metadata must not contain plaintext key");
   } finally {
     globalThis.fetch = originalFetch;
-    delete process.env.TEST_CODEX_GEMINI_LLMCALLER_API_KEY;
+    delete process.env.TEST_CODEX_LLMCALLER_API_KEY;
   }
 }
 
@@ -1678,6 +1736,7 @@ async function testFailureScenarios() {
 
 try {
   testDefaultStorePathsAreUserStable();
+  testLegacyRenamedEnvPathsStillWork();
   await testSecretEncryption();
   await testSecretSetFromEnv();
   await testGeminiRequestShape();
@@ -1707,6 +1766,8 @@ try {
   console.log("server tests ok");
 } finally {
   rmSync(testDir, { recursive: true, force: true });
+  delete process.env.CODEX_LLMCALLER_SECRETS_PATH;
+  delete process.env.CODEX_LLMCALLER_CONFIG_PATH;
   delete process.env.CODEX_GEMINI_LLMCALLER_SECRETS_PATH;
   delete process.env.CODEX_GEMINI_LLMCALLER_CONFIG_PATH;
 }

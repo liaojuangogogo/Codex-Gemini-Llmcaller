@@ -2,7 +2,7 @@
 
 ## 项目边界
 
-- 当前授权项目路径：`E:\Git\Codex-Gemini-Llmcaller`。
+- 当前授权项目路径：`E:\Git\Codex-Llmcaller`。
 - 创建、修改、删除、移动等写操作只能发生在该路径及其子路径内。
 - 原路径 `F:\Codex\CheckWithModel` 已取消授权，不要读取或写入。
 - Shell 环境：PowerShell。
@@ -10,7 +10,7 @@
 ## 安全要求
 
 - API key 不得出现在对话、命令行参数、日志或仓库文件中。
-- 本项目会安装到用户级目录 `$HOME/plugins/Codex-Gemini-Llmcaller`，但除非用户明确要求安装或验证客户端，否则不要主动写用户目录。
+- 本项目会安装到用户级目录 `$HOME/plugins/Codex-Llmcaller`，但除非用户明确要求安装或验证客户端，否则不要主动写用户目录。
 - 不要回滚用户未要求回滚的修改。
 
 ## 工作流程
@@ -22,9 +22,9 @@
 - 修改后至少运行：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
-node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
+node ./plugins/Codex-Llmcaller/scripts/server.test.mjs
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs
+node ./plugins/Codex-Llmcaller/scripts/release-check.mjs
 ```
 
 ## GitHub 同步
@@ -32,7 +32,7 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
 - 每次完成本地改动并通过验证后，需要同步到代码库：
 
 ```text
-https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+https://github.com/liaojuangogogo/Codex-Llmcaller
 ```
 
 - 同步前检查 `git status` 和本次 diff，只提交本次任务相关文件。

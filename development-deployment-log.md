@@ -1,4 +1,4 @@
-# Codex-Gemini-Llmcaller 开发与部署记录
+# Codex-Llmcaller 开发与部署记录
 
 本文记录已经落地的开发、测试、安装和部署变更。以后每次代码、脚本、配置、测试、文档或 skill 有修改，都必须同步更新本文件；提交前需要检查本文件记录是否覆盖本次 diff。
 
@@ -10,18 +10,60 @@
 
 ## 2026-05-08
 
-### 本次提交：Enable DeepSeek thinking by default
+### 本次提交：Rename project to Codex-Llmcaller
 
 变更范围：
 
-- `plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `.agents/plugins/marketplace.json`
+- `setup.mjs`
+- `AGENTS.md`
 - `README.md`
 - `INSTALL.zh-CN.md`
 - `USER_GUIDE.zh-CN.md`
 - `TEST_CASES.zh-CN.md`
-- `plugins/Codex-Gemini-Llmcaller/skills/Codex-Gemini-Llmcaller/SKILL.md`
+- `ROADMAP.zh-CN.md`
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/**`
+
+主要内容：
+
+- 项目和插件展示名称从 `Codex-Gemini-Llmcaller` 改为 `Codex-Llmcaller`，插件目录同步改为 `plugins/Codex-Llmcaller`，skill 目录同步改为 `skills/Codex-Llmcaller`。
+- marketplace 名称改为 `codex-llmcaller-local`，插件源显示为 `Codex-Llmcaller Local Plugins`，插件元数据中的 GitHub 仓库 URL 改为 `https://github.com/liaojuangogogo/Codex-Llmcaller`。
+- 初始化脚本继续支持 `--default-profile`，并在中文文档和测试用例中明确多 provider 初始化时可用 `--default-profile deepseek-default` 配置全局默认 profile。
+- 增加改名兼容层：安装时会迁移旧 `$HOME/plugins/Codex-Gemini-Llmcaller/.data/` 或 `$HOME/plugins/multi-model-api/.data/`；运行时优先读取新 `CODEX_LLMCALLER_*` 环境变量，同时兼容旧 `CODEX_GEMINI_LLMCALLER_*` 和 `MULTI_MODEL_*`。
+- 安装脚本会清理新旧插件 cache，并从 marketplace 中移除旧插件条目，避免客户端同时看到新旧插件。
+
+验证结果：
+
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\setup.mjs --help
+git diff --check
+```
+
+结果：通过。首次并行执行 `server.test.mjs` 与 `release-check.mjs` 时，`release-check.mjs` 正确拦截了测试过程中短暂生成的 `.data/test-secrets`；清理后按顺序执行完整验证通过。`git diff --check` 仅提示部分工作区文件换行会在 Git 触碰时从 LF 转为 CRLF，没有空白错误。
+
+部署影响：
+
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --default-profile <profile> --yes` 并完全重启 Codex Desktop。
+- 已安装旧插件的用户数据会复制迁移到 `$HOME/plugins/Codex-Llmcaller/.data/`；旧目录不会被删除。
+- GitHub 仓库本体需要在 GitHub 侧从 `Codex-Gemini-Llmcaller` 重命名为 `Codex-Llmcaller`，然后将本地 remote 更新到新 URL。
+
+### 本次提交：Enable DeepSeek thinking by default
+
+变更范围：
+
+- `plugins/Codex-Llmcaller/scripts/provider-registry.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `README.md`
+- `INSTALL.zh-CN.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
 
 主要内容：
 
@@ -33,9 +75,9 @@
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 node .\setup.mjs --check-only
 git diff --check
 ```
@@ -60,15 +102,15 @@ git diff --check
 
 - 补充新版 Codex Desktop 通过“添加插件市场”接入本项目的说明，覆盖本地仓库、GitHub 仓库和本地 marketplace 目录兜底三种填写方式。
 - 明确界面添加插件市场只负责让客户端发现插件，API key、profile 和本地加密 secret 仍必须通过 `setup.mjs` 初始化。
-- 在测试用例中增加插件市场添加后的预期：插件源列表出现 `Codex-Gemini-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Gemini-Llmcaller`。
+- 在测试用例中增加插件市场添加后的预期：插件源列表出现 `Codex-Llmcaller Local Plugins`，并可从该插件源添加 `Codex-Llmcaller`。
 - 用模拟外部模型输出验证低回流模式：9000 字符长输出在 `preview` 模式回流 1242 字符，约节省 86.2%；`file` 模式回流 1373 字符，约节省 84.7%；紧凑 JSON review 回流 231 字符，约节省 97.4%。
 
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 node .\setup.mjs --check-only
 git diff --check
 ```
@@ -89,11 +131,11 @@ git diff --check
 - `INSTALL.zh-CN.md`
 - `USER_GUIDE.zh-CN.md`
 - `TEST_CASES.zh-CN.md`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/scripts/release-check.mjs`
+- `plugins/Codex-Llmcaller/scripts/secret-import.mjs`
+- `plugins/Codex-Llmcaller/scripts/secret-migrate-local-user.mjs`
 
 主要内容：
 
@@ -105,9 +147,9 @@ git diff --check
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 node .\setup.mjs --check-only
 git diff --check
 ```
@@ -134,9 +176,9 @@ git diff --check
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 git diff --check
 ```
 
@@ -155,7 +197,7 @@ git diff --check
 - `INSTALL.zh-CN.md`
 - `USER_GUIDE.zh-CN.md`
 - `TEST_CASES.zh-CN.md`
-- `plugins/Codex-Gemini-Llmcaller/skills/Codex-Gemini-Llmcaller/SKILL.md`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
 
 主要内容：
 
@@ -170,9 +212,9 @@ git diff --check
 node .\setup.mjs --help
 node .\setup.mjs --check-only
 git diff --check
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -190,7 +232,7 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 - `INSTALL.zh-CN.md`
 - `USER_GUIDE.zh-CN.md`
 - `TEST_CASES.zh-CN.md`
-- `plugins/Codex-Gemini-Llmcaller/skills/Codex-Gemini-Llmcaller/SKILL.md`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
 
 主要内容：
 
@@ -202,9 +244,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 git diff --check
 ```
 
@@ -218,9 +260,9 @@ git diff --check
 
 变更范围：
 
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/router.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/router.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
 - 中文文档与 skill
 
 主要内容：
@@ -233,9 +275,9 @@ git diff --check
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -249,12 +291,12 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 变更范围：
 
 - `setup.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/provider-registry.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/router.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/mcp-smoke.mjs`
+- `plugins/Codex-Llmcaller/scripts/provider-registry.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/router.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/scripts/self-test.mjs`
+- `plugins/Codex-Llmcaller/scripts/mcp-smoke.mjs`
 - 中文文档与 skill
 
 主要内容：
@@ -268,9 +310,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -295,9 +337,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -310,9 +352,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 
 变更范围：
 
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/router.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/router.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
 - 中文文档与 roadmap
 
 主要内容：
@@ -325,9 +367,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -340,9 +382,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 
 变更范围：
 
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/router.mjs`
-- `plugins/Codex-Gemini-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/router.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
 - 中文文档
 
 主要内容：
@@ -354,9 +396,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。
@@ -381,9 +423,9 @@ node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
 验证结果：
 
 ```powershell
-node .\plugins\Codex-Gemini-Llmcaller\scripts\server.test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\self-test.mjs
-node .\plugins\Codex-Gemini-Llmcaller\scripts\release-check.mjs
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
 ```
 
 结果：通过。

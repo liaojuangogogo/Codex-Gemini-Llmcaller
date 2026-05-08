@@ -77,15 +77,15 @@ function checkPowerShell() {
 
 function probeWritableDirectory(directory) {
   mkdirSync(directory, { recursive: true });
-  const probePath = path.join(directory, `.Codex-Gemini-Llmcaller-write-test-${process.pid}-${Date.now()}`);
+  const probePath = path.join(directory, `.Codex-Llmcaller-write-test-${process.pid}-${Date.now()}`);
   writeFileSync(probePath, "ok", "utf8");
   rmSync(probePath, { force: true });
 }
 
 try {
   const args = parseArgs(process.argv.slice(2));
-  const pluginTargetDir = path.resolve(expandTilde(args.pluginTargetDir) || path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller"));
-  const pluginDataDir = path.join(os.homedir(), "plugins", "Codex-Gemini-Llmcaller", ".data");
+  const pluginTargetDir = path.resolve(expandTilde(args.pluginTargetDir) || path.join(os.homedir(), "plugins", "Codex-Llmcaller"));
+  const pluginDataDir = path.join(os.homedir(), "plugins", "Codex-Llmcaller", ".data");
   const marketplacePath = path.resolve(expandTilde(args.marketplacePath) || path.join(os.homedir(), ".agents", "plugins", "marketplace.json"));
   const nodeVersion = checkNodeVersion();
   const windowsVersion = checkWindows();

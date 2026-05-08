@@ -1,4 +1,4 @@
-# Codex-Gemini-Llmcaller 安装指南
+# Codex-Llmcaller 安装指南
 
 ## 1. 安装前要求
 
@@ -20,9 +20,9 @@ node ./setup.mjs
 
 脚本默认初始化 Gemini，会隐藏录入 Gemini API key，并完成以下工作：
 
-- 复制 `./plugins/Codex-Gemini-Llmcaller` 到当前用户插件目录。
+- 复制 `./plugins/Codex-Llmcaller` 到当前用户插件目录。
 - 保留目标目录已有 `.data/`，避免覆盖已有加密 secret。
-- 如果发现旧 `$HOME/plugins/multi-model-api/.data/`，且新目录还没有 `.data/`，自动迁移旧加密数据。
+- 如果发现旧 `$HOME/plugins/Codex-Gemini-Llmcaller/.data/` 或 `$HOME/plugins/multi-model-api/.data/`，且新目录还没有 `.data/`，自动迁移旧加密数据。
 - 在目标插件目录写入使用绝对 `server.mjs` 路径的 `.mcp.json`，避免客户端启动 MCP server 时受工作目录影响。
 - 创建或合并更新 `$HOME/.agents/plugins/marketplace.json`。
 - 清理本插件在 `$HOME/.codex/plugins/cache/` 下的旧缓存，避免客户端继续加载旧版本。
@@ -58,6 +58,12 @@ node ./setup.mjs --providers gemini,deepseek --skip-api-validate
 
 ```powershell
 node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+如果同时初始化 Gemini 和 DeepSeek，但希望全局默认走 DeepSeek：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --default-profile deepseek-default
 ```
 
 如果只安装或更新插件文件，不录入 API key，也不写入 profile：
@@ -103,15 +109,15 @@ node ./setup.mjs --providers gemini,deepseek
 1. 打开 Codex Desktop。
 2. 左侧点击“插件”。
 3. 顶部选择“插件”页签。
-4. 在插件源下拉中选择 `Codex-Gemini-Llmcaller Local Plugins`。
-5. 在 Productivity 分类下找到 `Codex-Gemini-Llmcaller`。
+4. 在插件源下拉中选择 `Codex-Llmcaller Local Plugins`。
+5. 在 Productivity 分类下找到 `Codex-Llmcaller`。
 6. 点击 `+`。
 7. 选择“在对话中试用”，或把插件添加到当前会话。
 
 添加后可以在会话中说：
 
 ```text
-@Codex-Gemini-Llmcaller 检查上面的回答。
+@Codex-Llmcaller 检查上面的回答。
 ```
 
 如果新版 Codex Desktop 没有自动显示本地插件源，可以手动添加插件市场：
@@ -124,7 +130,7 @@ node ./setup.mjs --providers gemini,deepseek
 本地仓库方式：
 
 ```text
-来源：E:\Git\Codex-Gemini-Llmcaller
+来源：E:\Git\Codex-Llmcaller
 Git 引用：（留空）
 稀疏路径：.agents/plugins
 ```
@@ -132,7 +138,7 @@ Git 引用：（留空）
 GitHub 方式：
 
 ```text
-来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
 稀疏路径：.agents/plugins
 ```
@@ -140,7 +146,7 @@ Git 引用：refs/heads/main
 如果本地仓库方式提示“添加插件市场失败”，改用 marketplace 目录作为来源：
 
 ```text
-来源：E:\Git\Codex-Gemini-Llmcaller\.agents\plugins
+来源：E:\Git\Codex-Llmcaller\.agents\plugins
 Git 引用：（留空）
 稀疏路径：（留空）
 ```
@@ -217,7 +223,7 @@ node ./setup.mjs
 
 如果插件标签能出现但 `call_model` 工具没有暴露，重点检查目标插件目录中的 `.mcp.json` 是否使用了绝对 `server.mjs` 路径，并确认 Codex Desktop 有“完全访问权限”。
 
-如果其他会话提示 `Secret 'gemini-default' was not found`，通常是客户端从 `$HOME/.codex/plugins/cache/` 运行了插件副本，但 secret 保存在用户级插件目录。新版插件默认会固定读取 `$HOME/plugins/Codex-Gemini-Llmcaller/.data/`，重启 Codex Desktop 后应能恢复。
+如果其他会话提示 `Secret 'gemini-default' was not found`，通常是客户端从 `$HOME/.codex/plugins/cache/` 运行了插件副本，但 secret 保存在用户级插件目录。新版插件默认会固定读取 `$HOME/plugins/Codex-Llmcaller/.data/`，重启 Codex Desktop 后应能恢复。
 
 如果仍然报同样错误，请完全退出 Codex Desktop 后重新运行：
 

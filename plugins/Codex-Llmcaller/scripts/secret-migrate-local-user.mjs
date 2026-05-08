@@ -30,7 +30,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(`Usage:
-  node ./plugins/Codex-Gemini-Llmcaller/scripts/secret-migrate-local-user.mjs --name <secret-name>
+  node ./plugins/Codex-Llmcaller/scripts/secret-migrate-local-user.mjs --name <secret-name>
 
 This migrates an existing passphrase-protected secret to Windows current-user
 protection. The old master key is entered with hidden terminal input and is not

@@ -1,6 +1,6 @@
-# Codex-Gemini-Llmcaller 用户文档
+# Codex-Llmcaller 用户文档
 
-`Codex-Gemini-Llmcaller` 用于在 Codex 会话中调用 Gemini 或其他 API-key 模型。普通用户安装一次后即可直接使用；高级用户通过本地 `config.json` 配置模型、超时、token、自动续写、fallback 和输出元信息。
+`Codex-Llmcaller` 用于在 Codex 会话中调用 Gemini 或其他 API-key 模型。普通用户安装一次后即可直接使用；高级用户通过本地 `config.json` 配置模型、超时、token、自动续写、fallback 和输出元信息。
 
 ## 1. 按模型使用
 
@@ -61,7 +61,7 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 你也可以在插件页把插件添加到会话后使用：
 
 ```text
-@Codex-Gemini-Llmcaller 检查上面的回答。
+@Codex-Llmcaller 检查上面的回答。
 ```
 
 插件页添加方式：
@@ -70,25 +70,25 @@ gemini-2.5-flash -> gemini-2.5-flash-lite -> gemini-2.0-flash
 2. 完全重启 Codex Desktop。
 3. 左侧进入“插件”。
 4. 顶部选择“插件”页签。
-5. 在插件源下拉中选择 `Codex-Gemini-Llmcaller Local Plugins`。
-6. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+5. 在插件源下拉中选择 `Codex-Llmcaller Local Plugins`。
+6. 找到 `Codex-Llmcaller`，点击 `+`。
 7. 选择“在对话中试用”或添加到当前会话。
 
 如果插件源没有出现，可以在插件页右上角通过“创建”菜单添加插件市场：
 
 ```text
 本地仓库：
-来源：E:\Git\Codex-Gemini-Llmcaller
+来源：E:\Git\Codex-Llmcaller
 Git 引用：（留空）
 稀疏路径：.agents/plugins
 
 GitHub：
-来源：https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller
+来源：https://github.com/liaojuangogogo/Codex-Llmcaller
 Git 引用：refs/heads/main
 稀疏路径：.agents/plugins
 ```
 
-如果本地仓库方式失败，再用 `E:\Git\Codex-Gemini-Llmcaller\.agents\plugins` 作为来源，并把稀疏路径留空。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
+如果本地仓库方式失败，再用 `E:\Git\Codex-Llmcaller\.agents\plugins` 作为来源，并把稀疏路径留空。添加插件市场只负责让客户端发现插件；API key 仍必须通过初始化脚本写入本地加密 secret。
 
 ## 2. 多模型初始化
 
@@ -108,6 +108,12 @@ node ./setup.mjs --providers gemini,deepseek
 
 ```powershell
 node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+如果同时配置 Gemini 和 DeepSeek，也可以在初始化时显式设置全局默认 profile：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --default-profile deepseek-default
 ```
 
 非交互模式可以只传环境变量名，不要把 API key 作为命令行参数：
@@ -131,7 +137,7 @@ node ./setup.mjs --providers gemini,deepseek --refresh-secrets
 普通用户配置请编辑安装目录中的文件：
 
 ```text
-$HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
+$HOME/plugins/Codex-Llmcaller/.data/config.json
 ```
 
 插件运行时会固定读取这个用户级 `.data/`，即使 Codex Desktop 把插件代码复制到 `$HOME/.codex/plugins/cache/` 运行，也不会把 secret 查找位置切到 cache 目录。Windows PowerShell 支持这种正斜杠路径。不要把 `.data/` 提交到 GitHub。
@@ -337,9 +343,10 @@ HTTP 429 RESOURCE_EXHAUSTED
 
 ```text
 ./.tmp/
-./plugins/Codex-Gemini-Llmcaller/.data/
-$HOME/plugins/Codex-Gemini-Llmcaller/.data/secrets.json
-$HOME/plugins/Codex-Gemini-Llmcaller/.data/config.json
+./plugins/Codex-Llmcaller/.data/
+$HOME/plugins/Codex-Llmcaller/.data/secrets.json
+$HOME/plugins/Codex-Llmcaller/.data/config.json
+$HOME/plugins/Codex-Gemini-Llmcaller/.data/
 $HOME/plugins/multi-model-api/.data/
 $HOME/.agents/plugins/marketplace.json
 $HOME/.agents/plugins/marketplace.json.bak
@@ -348,7 +355,7 @@ $HOME/.agents/plugins/marketplace.json.bak
 上传前建议执行：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
+node ./plugins/Codex-Llmcaller/scripts/release-check.mjs
 ```
 
 ## 10. 自测
@@ -356,19 +363,19 @@ node ./plugins/Codex-Gemini-Llmcaller/scripts/release-check.mjs
 基础自测：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs
 ```
 
 真实 Gemini 调用自测：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
 指定真实 profile 调用自测：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
 ```
 
 更多测试用例见：

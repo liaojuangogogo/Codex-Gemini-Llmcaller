@@ -43,7 +43,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(`Usage:
-  node ./plugins/Codex-Gemini-Llmcaller/scripts/secret-import.mjs --name <secret-name> [options]
+  node ./plugins/Codex-Llmcaller/scripts/secret-import.mjs --name <secret-name> [options]
 
 Options:
   --name <name>                 Required secret name, for example gemini-default
@@ -122,8 +122,8 @@ async function readSecretValue(args) {
 async function readMasterKey(args) {
   const envName = typeof args.masterKeyEnv === "string" && args.masterKeyEnv.trim()
     ? args.masterKeyEnv.trim()
-    : "CODEX_GEMINI_LLMCALLER_MASTER_KEY";
-  const envValue = process.env[envName];
+    : "CODEX_LLMCALLER_MASTER_KEY";
+  const envValue = process.env[envName] || (envName === "CODEX_LLMCALLER_MASTER_KEY" ? process.env.CODEX_GEMINI_LLMCALLER_MASTER_KEY : null);
 
   if (envValue) {
     return envValue;

@@ -1,6 +1,6 @@
-# Codex-Gemini-Llmcaller
+# Codex-Llmcaller
 
-`Codex-Gemini-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini、DeepSeek 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过初始化参数或本地配置文件接入多模型、自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
+`Codex-Llmcaller` 是一个本地 Codex 插件，用于在会话中通过加密保存的 API key 调用 Gemini、DeepSeek 和其他大模型服务。默认安装后可直接使用 Gemini，也支持通过初始化参数或本地配置文件接入多模型、自定义模型、超时时间、token、fallback、自动续写、联网 grounding 和图片输入。
 
 ## 快速安装
 
@@ -42,6 +42,12 @@ node ./setup.mjs --providers gemini,deepseek --skip-api-validate
 
 ```powershell
 node ./setup.mjs --providers deepseek --default-profile deepseek-default
+```
+
+如果同时初始化多个 provider，也可以显式指定全局默认 profile：
+
+```powershell
+node ./setup.mjs --providers gemini,deepseek --default-profile deepseek-default
 ```
 
 环境要求：
@@ -92,20 +98,20 @@ DeepSeek 高质量核对：
 1. 先运行 `node ./setup.mjs --providers gemini,deepseek`，完成安装、API key 录入和 marketplace 注册。
 2. 完全重启 Codex Desktop。
 3. 左侧进入“插件”，顶部选择“插件”页签。
-4. 在插件源下拉中选择本地插件源，例如 `Codex-Gemini-Llmcaller Local Plugins`。
-5. 找到 `Codex-Gemini-Llmcaller`，点击 `+`。
+4. 在插件源下拉中选择本地插件源，例如 `Codex-Llmcaller Local Plugins`。
+5. 找到 `Codex-Llmcaller`，点击 `+`。
 6. 在会话中试用或添加到当前会话，然后说：
 
 ```text
-@Codex-Gemini-Llmcaller 检查上面的回答。
+@Codex-Llmcaller 检查上面的回答。
 ```
 
 如果新版 Codex Desktop 没有自动显示本地插件源，可以点击“管理”旁的“创建”菜单，选择添加插件市场：
 
-- 本地仓库方式：来源填 `E:\Git\Codex-Gemini-Llmcaller`，Git 引用留空，稀疏路径填 `.agents/plugins`。
-- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Gemini-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径填 `.agents/plugins`。
+- 本地仓库方式：来源填 `E:\Git\Codex-Llmcaller`，Git 引用留空，稀疏路径填 `.agents/plugins`。
+- GitHub 方式：来源填 `https://github.com/liaojuangogogo/Codex-Llmcaller`，Git 引用填 `refs/heads/main`，稀疏路径填 `.agents/plugins`。
 
-如果本地仓库方式提示添加失败，再把来源改为 `E:\Git\Codex-Gemini-Llmcaller\.agents\plugins`，稀疏路径留空。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
+如果本地仓库方式提示添加失败，再把来源改为 `E:\Git\Codex-Llmcaller\.agents\plugins`，稀疏路径留空。无论用哪种方式添加插件市场，API key 仍需要通过 `setup.mjs` 初始化到本机加密 secret。
 
 如果需要稳定指定模型，也可以在调用参数中使用 `profileName`：`gemini-default`、`gemini-grounded`、`deepseek-default`、`deepseek-pro`。
 
@@ -152,19 +158,19 @@ DeepSeek 高质量核对：
 ## 自测
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs
 ```
 
 完成初始化安装后，可执行真实 Gemini 调用自测：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-gemini
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-gemini
 ```
 
 也可以指定真实 profile：
 
 ```powershell
-node ./plugins/Codex-Gemini-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
+node ./plugins/Codex-Llmcaller/scripts/self-test.mjs --real-profile deepseek-default
 ```
 
 ## 文档入口
