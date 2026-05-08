@@ -50,7 +50,8 @@ git diff --check
 
 - 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --default-profile <profile> --yes` 并完全重启 Codex Desktop。
 - 已安装旧插件的用户数据会复制迁移到 `$HOME/plugins/Codex-Llmcaller/.data/`；旧目录不会被删除。
-- GitHub 仓库本体需要在 GitHub 侧从 `Codex-Gemini-Llmcaller` 重命名为 `Codex-Llmcaller`，然后将本地 remote 更新到新 URL。
+- GitHub 仓库本体已通过 GitHub CLI 从 `Codex-Gemini-Llmcaller` 重命名为 `Codex-Llmcaller`，本地 `origin` 已更新为 `git@github.com:liaojuangogogo/Codex-Llmcaller.git`。
+- 当前会话尝试把本地 checkout 根目录从 `E:\Git\Codex-Gemini-Llmcaller` 移动到 `E:\Git\Codex-Llmcaller`，但 Windows 返回目录正被进程占用；目标目录未创建。需要关闭占用该目录的终端、编辑器或 Codex 会话后再执行本地目录重命名。
 
 ### 本次提交：Enable DeepSeek thinking by default
 
