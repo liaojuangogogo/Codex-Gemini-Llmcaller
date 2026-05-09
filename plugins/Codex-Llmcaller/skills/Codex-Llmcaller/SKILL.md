@@ -28,7 +28,8 @@ description: 当用户明确要求调用 Gemini、DeepSeek 或其他外部模型
 - `executionMode: "rewrite"`：改写、润色、翻译、缩短。
 - `executionMode: "extract"`：抽取、转换为 JSON、表格或列表。
 - `inputSource: "context"`：请求引用上文或之前回答时使用；否则使用 `direct`。
-- 对检查上文回答的 review 请求，默认使用 `outputMode: "json"`，除非用户明确要求完整外部模型原文。JSON 应保持紧凑，包含 `verdict`、`severity`、`confidence`、`issues`、`suggested_correction` 和 `need_full_review`。
+- 对检查上文回答的 review 请求，默认使用 `outputMode: "json"`，除非用户明确要求完整外部模型原文。JSON 应保持紧凑，并必须包含可读自然语言审计结论。优先包含 `opinion`、`conclusion`、`basis`、`recommendation`、`verdict`、`severity`、`confidence`、`issues`、`suggested_correction` 和 `need_full_review`。
+- review 结论必须参考四类核心审计意见：`无保留意见`、`保留意见`、`否定意见`、`无法表示意见`。即使没有额外建议，也必须给出明确 `conclusion`，并让 `recommendation` 写为 `无额外建议。`。
 - 对长报告或长审查，如果用户不需要在聊天中直接看到完整外部模型文本，使用 `outputMode: "file"`。插件会把完整输出保存到当前工作区 `.tmp/model-results/`，并只返回路径和短预览。
 
 默认不传 `routingMode`，保持配置的默认 profile。如果用户明确要求“自动选择模型/是否联网/路由判断”，可传 `routingMode: "auto"`，让插件按请求选择 DeepSeek review、Gemini grounded 或 Gemini 多模态 profile。

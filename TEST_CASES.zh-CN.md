@@ -291,6 +291,8 @@ Git 引用：refs/heads/main
 - `outputMode: "json"` 时发送 `response_format: { "type": "json_object" }`
 - `thinkingMode: "enabled"` 时发送 `thinking: { "type": "enabled" }`
 - `deepseek-default` 默认发送 `thinking: { "type": "enabled" }` 和 `reasoning_effort: "high"`；旧配置中内置 `deepseek-default` 如果仍为 `thinkingMode: "disabled"`，运行时会迁移为 enabled。
+- review JSON 会包含或补齐 `opinion`、`conclusion`、`basis`、`recommendation`，不会只返回非阻塞建议。
+- 四类核心审计意见为 `无保留意见`、`保留意见`、`否定意见`、`无法表示意见`。
 - DeepSeek 402/422/429/503 会返回更明确的错误说明
 
 执行：

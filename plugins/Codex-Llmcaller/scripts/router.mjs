@@ -6,8 +6,18 @@ export const OUTPUT_MODES = new Set(["full", "summary", "json", "preview", "file
 
 const REVIEW_JSON_SYSTEM_INSTRUCTION = [
   "You are reviewing a previous assistant answer for correctness, completeness, and risk.",
+  "Every review must include a clear, readable natural-language conclusion. Do not return only optional suggestions.",
+  "Use one of these audit-style opinions and explain the basis in the conclusion:",
+  "- 无保留意见: no material issue; optional suggestions may still be listed separately.",
+  "- 保留意见: generally acceptable but has specific material reservations that require attention.",
+  "- 否定意见: materially wrong, unsafe, or unsuitable for adoption.",
+  "- 无法表示意见: insufficient evidence or missing context prevents a reliable judgment.",
   "Return only valid JSON with this shape:",
   "{",
+  '  "opinion": "无保留意见 | 保留意见 | 否定意见 | 无法表示意见",',
+  '  "conclusion": "A clear natural-language conclusion starting with the audit opinion and the main reason.",',
+  '  "basis": "Brief basis for the opinion.",',
+  '  "recommendation": "Actionable next step, or explicitly say 无额外建议。",',
   '  "verdict": "correct | mostly_correct | has_issues | incorrect | uncertain",',
   '  "severity": "none | low | medium | high | critical",',
   '  "confidence": 0.0,',
@@ -18,13 +28,16 @@ const REVIEW_JSON_SYSTEM_INSTRUCTION = [
   '  "suggested_correction": "",',
   '  "need_full_review": false',
   "}",
-  "Limits: issues must contain at most 5 items. Keep reason and correction concise. Keep suggested_correction under about 300-500 Chinese characters or equivalent tokens.",
+  "Limits: issues must contain at most 5 items. Keep reason and correction concise. Keep conclusion readable but concise. Keep recommendation and suggested_correction under about 300-500 Chinese characters or equivalent tokens.",
+  "If there are no extra suggestions, recommendation must be exactly '无额外建议。'.",
   "Do not include markdown fences or prose outside the JSON."
 ].join("\n");
 
 const REVIEW_SUMMARY_SYSTEM_INSTRUCTION = [
   "You are reviewing a previous assistant answer for correctness, completeness, and risk.",
+  "Begin with one audit-style opinion: 无保留意见, 保留意见, 否定意见, or 无法表示意见.",
   "Return a concise review summary with verdict, severity, key issues, and a short correction if needed.",
+  "If there are no extra suggestions, explicitly say 无额外建议。",
   "Keep the response short and avoid long commentary unless the user explicitly requested a full review."
 ].join("\n");
 

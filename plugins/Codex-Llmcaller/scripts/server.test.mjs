@@ -1056,10 +1056,74 @@ async function testDeepSeekOfficialRequestShape() {
     assert.equal(captured.body.reasoning_effort, "max");
     assert.equal(captured.body.messages[0].role, "system");
     assert(captured.body.messages[0].content.includes("Return only valid JSON"));
+    assert(captured.body.messages[0].content.includes("无保留意见"));
+    assert(captured.body.messages[0].content.includes("conclusion"));
     assert.equal(result.delegation.outputMode, "json");
     assert.equal(result.route.outputMode, "json");
     assert.equal(result.outputJson.verdict, "mostly_correct");
+    assert.equal(result.outputJson.opinion, "无保留意见");
+    assert(result.outputJson.conclusion.includes("无保留意见"));
+    assert.equal(result.outputJson.recommendation, "无额外建议。");
     assert.equal(result.tokenUsage.total, 23);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function testReviewJsonAddsReadableAuditConclusion() {
+  let captured = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured = {
+      url,
+      body: JSON.parse(options.body)
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: "correct",
+                severity: "none",
+                confidence: 0.95,
+                issues: [],
+                suggested_correction: "建议明确 requireTestsPass 默认值为 true。",
+                need_full_review: false
+              })
+            }
+          }
+        ],
+        usage: {
+          prompt_tokens: 7,
+          completion_tokens: 8,
+          total_tokens: 15
+        }
+      })
+    };
+  };
+
+  try {
+    const result = await callModel({
+      provider: "openai-compatible",
+      model: "review-model",
+      apiKey: TEST_SECRET,
+      prompt: "Review the design.",
+      executionMode: "review",
+      inputSource: "context",
+      outputMode: "json"
+    });
+
+    assert.equal(captured.body.messages[0].role, "system");
+    assert(captured.body.messages[0].content.includes("Every review must include a clear"));
+    assert.equal(result.outputJson.opinion, "无保留意见");
+    assert(result.outputJson.conclusion.includes("审计结论：无保留意见"));
+    assert.equal(result.outputJson.recommendation, "建议明确 requireTestsPass 默认值为 true。");
+    assert(result.text.includes("审计结论：无保留意见"));
+    assert.equal(result.outputJson.suggested_correction, "建议明确 requireTestsPass 默认值为 true。");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -2073,6 +2137,7 @@ try {
   await testOutputMetaFooterConfigPrecedence();
   await testProviderTokenUsageMappings();
   await testDeepSeekOfficialRequestShape();
+  await testReviewJsonAddsReadableAuditConclusion();
   await testDeepSeekPresetAndErrorClassification();
   await testProviderCapabilitiesTool();
   await testProviderRegistryProfileMetadata();

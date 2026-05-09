@@ -103,15 +103,15 @@ DeepSeek 高质量核对：
 - `deepseek-default`：`deepseek-v4-flash`，默认启用 thinking，`reasoningEffort: "high"`
 - `deepseek-pro`：`deepseek-v4-pro`，启用 thinking，`reasoningEffort: "high"`
 
-核对 Codex 之前回答时，插件默认使用紧凑的 `outputMode: "json"`，避免外部模型的长评语回流到 Codex 上下文。
+核对 Codex 之前回答时，插件默认使用紧凑的 `outputMode: "json"`，避免外部模型的长评语回流到 Codex 上下文。review JSON 必须包含可读自然语言审计结论，使用 `无保留意见`、`保留意见`、`否定意见`、`无法表示意见` 四类意见之一；即使没有额外建议，也必须明确给出 `conclusion` 和 `recommendation: "无额外建议。"`。
 
 ## 输出模式
 
 `call_model` 支持以下输出控制：
 
 - `full`：在聊天中返回完整模型文本。
-- `json`：要求 review 调用返回紧凑结构化 JSON，并解析到 `outputJson`。
-- `summary`：要求 review 调用返回简短自然语言摘要。
+- `json`：要求 review 调用返回紧凑结构化 JSON，并解析到 `outputJson`；review 场景会包含 `opinion`、`conclusion`、`basis`、`recommendation`。
+- `summary`：要求 review 场景返回简短自然语言摘要，并以四类审计意见之一开头。
 - `preview`：只返回有限长度预览，并记录截断元数据。
 - `file`：把完整模型输出保存到当前工作区 `.tmp/model-results/`，聊天中只返回短预览和保存路径。
 

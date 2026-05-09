@@ -10,6 +10,44 @@
 
 ## 2026-05-09
 
+### 本次提交：Require readable audit conclusions
+
+变更范围：
+- `README.md`
+- `USER_GUIDE.zh-CN.md`
+- `TEST_CASES.zh-CN.md`
+- `ROADMAP.zh-CN.md`
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/scripts/router.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
+
+主要内容：
+- review 场景的 JSON prompt 新增四类核心审计意见：`无保留意见`、`保留意见`、`否定意见`、`无法表示意见`。
+- review JSON 要求包含 `opinion`、`conclusion`、`basis`、`recommendation`，确保返回可读自然语言结论，而不是只返回非阻塞建议。
+- 服务端对旧模型返回做兼容归一化：如果外部模型只返回 `verdict`、`severity` 或 `suggested_correction`，插件会补齐审计意见、结论、依据和建议；无额外建议时统一写 `无额外建议。`。
+- summary review prompt 也要求以四类审计意见之一开头。
+- 补充测试覆盖 DeepSeek/openai-compatible review prompt 和旧 JSON 返回的归一化行为。
+- 同步 README、用户文档、测试用例、路线文档和 skill 中的审计结论口径。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+node .\setup.mjs --check-only
+git diff --check
+```
+
+结果：通过。`git diff --check` 仅提示部分工作区文件在 Git 触碰时会从 LF 转为 CRLF，没有空白错误。
+
+外部模型审计：
+- 使用 `deepseek-default` 对本次 diff 做 review，结论为 `无保留意见`，`severity: none`，未发现阻塞问题，建议为 `无额外建议。`。
+
+部署影响：
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新的 review prompt、schema 行为和 skill。
+
 ### 本次提交：Add Gemini multimodal media inputs
 
 变更范围：

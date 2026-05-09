@@ -801,11 +801,113 @@ function normalizeOutputModeResult(result, args) {
     };
   }
 
+  const normalizedJson = args.executionMode === "review"
+    ? normalizeReviewJsonOutput(outputJson)
+    : outputJson;
+
   return {
     ...result,
-    text: JSON.stringify(outputJson, null, 2),
-    outputJson
+    text: JSON.stringify(normalizedJson, null, 2),
+    outputJson: normalizedJson
   };
+}
+
+function normalizeReviewJsonOutput(outputJson) {
+  if (!isPlainObject(outputJson)) {
+    return outputJson;
+  }
+
+  const opinion = normalizeReviewOpinion(outputJson);
+  const basis = normalizeReviewBasis(outputJson, opinion);
+  const recommendation = normalizeReviewRecommendation(outputJson);
+  const conclusion = normalizeReviewConclusion(outputJson, opinion, basis);
+
+  return removeUndefined({
+    opinion,
+    conclusion,
+    basis,
+    recommendation,
+    ...outputJson,
+    opinion: normalizeReviewOpinion({ ...outputJson, opinion }),
+    conclusion,
+    basis,
+    recommendation
+  });
+}
+
+function normalizeReviewOpinion(outputJson) {
+  const explicit = optionalTrimmedString(outputJson.opinion) ||
+    optionalTrimmedString(outputJson.auditOpinion) ||
+    optionalTrimmedString(outputJson.reviewOpinion);
+  if (["无保留意见", "保留意见", "否定意见", "无法表示意见"].includes(explicit)) {
+    return explicit;
+  }
+
+  const verdict = optionalTrimmedString(outputJson.verdict);
+  const severity = optionalTrimmedString(outputJson.severity);
+  const hasIssues = Array.isArray(outputJson.issues) && outputJson.issues.length > 0;
+  const missingContext = Boolean(optionalTrimmedString(outputJson.missing_context) || optionalTrimmedString(outputJson.missingContext));
+
+  if (missingContext || verdict === "uncertain") {
+    return "无法表示意见";
+  }
+  if (severity === "critical" || severity === "high" || verdict === "incorrect") {
+    return "否定意见";
+  }
+  if (severity === "medium" || verdict === "has_issues" || outputJson.need_full_review === true) {
+    return "保留意见";
+  }
+  if (severity === "low" && hasIssues) {
+    return "保留意见";
+  }
+
+  return "无保留意见";
+}
+
+function normalizeReviewBasis(outputJson, opinion) {
+  const explicit = optionalTrimmedString(outputJson.basis) ||
+    optionalTrimmedString(outputJson.rationale) ||
+    optionalTrimmedString(outputJson.reason) ||
+    optionalTrimmedString(outputJson.pass_meaning);
+  if (explicit) {
+    return explicit;
+  }
+
+  const severity = optionalTrimmedString(outputJson.severity) || "unknown";
+  const verdict = optionalTrimmedString(outputJson.verdict) || "unknown";
+  const issues = Array.isArray(outputJson.issues) ? outputJson.issues : [];
+  if (issues.length > 0) {
+    const firstTitle = optionalTrimmedString(issues[0]?.title) || "存在需处理的问题";
+    return `审计意见为${opinion}，依据是 verdict=${verdict}、severity=${severity}，主要问题：${firstTitle}。`;
+  }
+
+  if (opinion === "无法表示意见") {
+    return "现有材料不足以形成可靠判断，需要补充上下文、测试结果或相关实现。";
+  }
+  if (opinion === "无保留意见") {
+    return `审计意见为无保留意见，依据是 verdict=${verdict}、severity=${severity}，未发现阻塞问题。`;
+  }
+
+  return `审计意见为${opinion}，依据是 verdict=${verdict}、severity=${severity}。`;
+}
+
+function normalizeReviewRecommendation(outputJson) {
+  const explicit = optionalTrimmedString(outputJson.recommendation) ||
+    optionalTrimmedString(outputJson.suggested_correction) ||
+    optionalTrimmedString(outputJson.suggestedCorrection) ||
+    optionalTrimmedString(outputJson.notes);
+  return explicit || "无额外建议。";
+}
+
+function normalizeReviewConclusion(outputJson, opinion, basis) {
+  const explicit = optionalTrimmedString(outputJson.conclusion) ||
+    optionalTrimmedString(outputJson.naturalLanguageConclusion) ||
+    optionalTrimmedString(outputJson.answer);
+  if (explicit) {
+    return explicit.includes(opinion) ? explicit : `审计结论：${opinion}。${explicit}`;
+  }
+
+  return `审计结论：${opinion}。${basis}`;
 }
 
 function previewText(text, previewChars) {

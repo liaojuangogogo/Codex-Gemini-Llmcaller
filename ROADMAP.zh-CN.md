@@ -38,6 +38,10 @@
 
 ```json
 {
+  "opinion": "无保留意见 | 保留意见 | 否定意见 | 无法表示意见",
+  "conclusion": "审计结论：无保留意见。给出可读自然语言结论和主要理由。",
+  "basis": "形成该审计意见的主要依据",
+  "recommendation": "无额外建议。",
   "verdict": "correct | mostly_correct | has_issues | incorrect | uncertain",
   "severity": "none | low | medium | high | critical",
   "confidence": 0.82,
@@ -58,6 +62,9 @@
 ### 字段限制
 
 - `issues` 默认最多 5 条。
+- `opinion` 必须使用四类核心审计意见之一：`无保留意见`、`保留意见`、`否定意见`、`无法表示意见`。
+- `conclusion` 必须是可读自然语言结论，不能只返回非阻塞建议。
+- 如果不需要额外建议，`recommendation` 应明确写为 `无额外建议。`。
 - 单条 `reason` 和 `correction` 应保持短句，避免长篇解释。
 - `suggested_correction` 默认限制在约 300-500 中文字或等价 token 范围内。
 - 只有当 `severity` 为 `high` 或 `critical`，且 `need_full_review` 为 `true` 时，才建议生成完整报告。
