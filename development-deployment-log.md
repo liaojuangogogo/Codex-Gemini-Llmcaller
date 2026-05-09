@@ -10,6 +10,31 @@
 
 ## 2026-05-09
 
+### 本次提交：Document plugin review response contract
+
+变更范围：
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
+
+主要内容：
+- 在 skill 中新增“插件审查回传格式”，固化外部模型审查结果的展示要求。
+- 要求 Codex 在插件审查场景中明确展示提交给插件的问题、插件审查结论、插件建议与问题、Codex 逐条回应、插件调用信息、循环调用次数、修订后的最终答案和是否继续循环。
+- 要求回复中体现 provider/model、profile、token 数、fallback 状态和外部模型调用轮次；如果插件未返回 token，需要明确说明。
+- 要求 Codex 不得把插件建议静默合并到最终答案中；每条插件建议都必须明确 `采纳`、`不采纳` 或 `延后` 及理由。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+```
+
+结果：通过。
+
+部署影响：
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新的 skill 行为。
+- 未修改运行时代码；本次改动主要影响 Codex 使用插件审查后的回答格式。
+
 ### 本次提交：Require readable audit conclusions
 
 变更范围：
