@@ -774,12 +774,17 @@ async function testVisibleMetaFooter() {
         provider: "google",
         model: "gemini-3-flash-preview",
         apiKey: TEST_SECRET,
-        prompt: "hello"
+        prompt: "hello",
+        executionMode: "review",
+        reviewIteration: 2
       }
     });
     assert(defaultFooter.content[0].text.includes("模型: google / gemini-3-flash-preview"));
     assert(defaultFooter.content[0].text.includes("Tokens: input=4, output=5, total=9"));
+    assert(defaultFooter.content[0].text.includes("Fallback: no"));
+    assert(defaultFooter.content[0].text.includes("审查循环: 第 2 轮"));
     assert.equal(defaultFooter.structuredContent.tokenUsage.total, 9);
+    assert.equal(defaultFooter.structuredContent.delegation.reviewIteration, 2);
     assert.equal(defaultFooter.structuredContent.raw, undefined);
 
     const hiddenFooter = await handleToolCall({
@@ -1811,9 +1816,13 @@ async function testProfileFallback() {
       }
     });
 
-    const result = await callModel({
-      prompt: "hello with fallback"
+    const toolResult = await handleToolCall({
+      name: "call_model",
+      arguments: {
+        prompt: "hello with fallback"
+      }
     });
+    const result = toolResult.structuredContent;
 
     assert.equal(calls, 2);
     assert(capturedUrls[0].endsWith("/models/gemini-primary:generateContent"));
@@ -1823,6 +1832,7 @@ async function testProfileFallback() {
     assert.equal(result.fallbackUsed, true);
     assert.equal(result.fallbackFailures.length, 1);
     assert.equal(result.fallbackFailures[0].profileName, "primary");
+    assert(toolResult.content[0].text.includes("Fallback: yes"));
     assert(!JSON.stringify(result).includes(TEST_SECRET), "fallback metadata must not contain plaintext key");
   } finally {
     globalThis.fetch = originalFetch;

@@ -10,6 +10,34 @@
 
 ## 2026-05-09
 
+### 本次提交：Scope plugin metadata display to model calls
+
+变更范围：
+- `development-deployment-log.md`
+- `plugins/Codex-Llmcaller/scripts/server.mjs`
+- `plugins/Codex-Llmcaller/scripts/server.test.mjs`
+- `plugins/Codex-Llmcaller/skills/Codex-Llmcaller/SKILL.md`
+
+主要内容：
+- 将 skill 中的审查呈现要求收敛为“仅在实际调用 Codex-Llmcaller 外部模型工具后生效”，明确普通 Codex 回答、其他项目回答或未使用外部模型的结论不要套用该格式。
+- 插件可见 footer 增加 `Fallback: yes/no`，让 Codex Desktop 自然语言呈现时可直接保留外部模型 fallback 状态。
+- `call_model` 新增可选 `reviewIteration` 参数，用于多轮审查循环时显示当前轮次；review 场景 footer 会显示 `审查循环: 第 N 轮`。
+- `delegation` 结构只在 review 场景且传入轮次时保留 `reviewIteration`，保持旧调用兼容。
+- 补充测试覆盖 footer 中的 fallback 状态、review 轮次，以及 fallback 成功时可见文本包含 `Fallback: yes`。
+
+验证结果：
+```powershell
+node .\plugins\Codex-Llmcaller\scripts\server.test.mjs
+node .\plugins\Codex-Llmcaller\scripts\self-test.mjs
+node .\plugins\Codex-Llmcaller\scripts\release-check.mjs
+```
+
+结果：通过。
+
+部署影响：
+- 需要重新运行 `node .\setup.mjs --providers gemini,deepseek --yes` 并完全重启 Codex Desktop，才能让客户端加载新的 server schema、footer 行为和 skill 说明。
+- 本次改动只影响插件调用结果的短元信息展示，不要求未调用插件的普通回答显示这些字段。
+
 ### 本次提交：Document plugin review response contract
 
 变更范围：

@@ -302,6 +302,12 @@ const tools = [
           type: "boolean",
           description: "Append provider/model/token metadata to visible text. Structured metadata is always returned."
         },
+        reviewIteration: {
+          type: "integer",
+          minimum: 1,
+          maximum: 1000,
+          description: "Current external-model review loop iteration, used only for visible review metadata."
+        },
         fallbackProfileName: {
           type: "string",
           description: "Fallback profile to try if the selected profile call fails."
@@ -386,6 +392,7 @@ const tools = [
         autoContinue: { type: "boolean" },
         maxContinuationRounds: { type: "integer", minimum: 0, maximum: 10 },
         outputMetaFooter: { type: "boolean" },
+        reviewIteration: { type: "integer", minimum: 1, maximum: 1000 },
         fallbackProfileName: { type: "string" },
         fallbackProfiles: { type: "array", items: { type: "string" } },
         headers: { type: "object", additionalProperties: { type: "string" } },
@@ -742,7 +749,7 @@ function enrichModelResult(result, args) {
 }
 
 function buildDelegationInfo(args) {
-  return {
+  return removeUndefined({
     executionMode: args.executionMode ?? "raw",
     groundingMode: args.groundingMode ?? "off",
     inputSource: args.inputSource ?? "direct",
@@ -750,9 +757,10 @@ function buildDelegationInfo(args) {
     outputMode: args.outputMode ?? "full",
     imageCount: countImageInputs(args),
     mediaCount: Array.isArray(args.mediaInputs) ? args.mediaInputs.length : 0,
+    reviewIteration: args.executionMode === "review" ? args.reviewIteration : undefined,
     strictDelegation: args.strictDelegation !== false,
     codexPreprocessedFacts: false
-  };
+  });
 }
 
 function normalizeOutputModeResult(result, args) {
@@ -1056,17 +1064,27 @@ function formatModelResponseText(result, returnRaw) {
 function formatModelMetaFooter(result) {
   const usage = result.tokenUsage ?? {};
   const info = result.modelInfo ?? {};
-
-  return [
+  const lines = [
     "---",
     `模型: ${info.provider ?? "unknown"} / ${info.model ?? "unknown"}`,
     `Profile: ${info.profileName ?? "unknown"}`,
-    `Tokens: input=${formatTokenValue(usage.input)}, output=${formatTokenValue(usage.output)}, total=${formatTokenValue(usage.total)}`
-  ].join("\n");
+    `Tokens: input=${formatTokenValue(usage.input)}, output=${formatTokenValue(usage.output)}, total=${formatTokenValue(usage.total)}`,
+    `Fallback: ${result.fallbackUsed ? "yes" : "no"}`
+  ];
+
+  if (result.delegation?.executionMode === "review") {
+    lines.push(`审查循环: 第 ${formatReviewIteration(result.delegation.reviewIteration)} 轮`);
+  }
+
+  return lines.join("\n");
 }
 
 function formatTokenValue(value) {
   return Number.isInteger(value) ? String(value) : "unknown";
+}
+
+function formatReviewIteration(value) {
+  return Number.isInteger(value) && value > 0 ? String(value) : "1";
 }
 
 function publicModelFailure(args, error) {
@@ -2417,6 +2435,7 @@ function normalizeDelegationArgs(source) {
     args.reasoningEffort = normalizeEnumValue(args.reasoningEffort, new Set(["low", "medium", "high", "max", "xhigh"]), "reasoningEffort", undefined);
   }
   args.strictDelegation = args.strictDelegation !== false;
+  args.reviewIteration = clampInteger(args.reviewIteration, 1, 1000, undefined);
   args.maxImages = clampInteger(args.maxImages, 1, 16, DEFAULT_MAX_IMAGES);
   args.maxImageBytes = clampInteger(args.maxImageBytes, 1024, 100 * 1024 * 1024, DEFAULT_MAX_IMAGE_BYTES);
 
